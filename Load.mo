@@ -1,6 +1,9 @@
 model Load
-  extends Modelica.Electrical.Analog.Basic.VariableResistor;
-  parameter Modelica.SIunits.Current I_req;
+  extends Modelica.Electrical.Analog.Interfaces.OnePort;
+  parameter Modelica.Blocks.Interfaces.RealInput I_req "Connector of Real input signals" annotation (Placement(
+        transformation(extent={{-20,-20},{20,20}},
+        rotation=270,
+        origin={0,100})));
 equation
-  R = v/I_req;
+  i = I_req;
 end Load;
