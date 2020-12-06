@@ -63,7 +63,11 @@ equation
     Line(points = {{7.3, -43}, {-2, -43}, {-2, -36}, {-11, -36}}, color = {0, 0, 127}));
   connect(Sum.y, SOC_to_U_bat.u[1]) annotation(
     Line(points = {{-32, -36}, {-25, -36}}, color = {0, 0, 127}));
-
+  
+  when Sum.y < 0 then
+    terminate("battery has discharged");
+  end when;
+  
   // Find voltage difference and modify signalVoltage
   connect(signalVoltage.p, U_ocv.p) annotation(
     Line(points = {{-100, -26}, {-100, -19}, {-84, -19}, {-84, -18}}, color = {0, 0, 255}));
