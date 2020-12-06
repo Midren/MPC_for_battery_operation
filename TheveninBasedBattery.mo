@@ -1,11 +1,16 @@
 model TheveninBasedBattery "Basic Battery Model based on Thevenin electrical model"
   constant Real C_bat = 3060;
-  Modelica.Electrical.Analog.Basic.Resistor R_0(R = 1) annotation(
+  Real SoC;
+  ChargeDependentResistor R_s(R_0 = 0.07446, k1=0.1562, k2=-24.37) annotation(
     Placement(visible = true, transformation(origin = {-48, 40}, extent = {{10, -10}, {-10, 10}}, rotation = 0)));
-  Modelica.Electrical.Analog.Basic.Resistor R_tl(R = 50) annotation(
+  ChargeDependentResistor R_ts(R_0 = 0.04669, k1=0.3208, k2=-29.14) annotation(
+    Placement(visible = true, transformation(origin = {-10, 40}, extent = {{10, -10}, {-10, 10}}, rotation = 0)));
+  ChargeDependentCapacitor C_ts(C_0 = 703.6, k1=-752.9, k2=-13.51) annotation(
+    Placement(visible = true, transformation(origin = {-10, 12}, extent = {{10, 10}, {-10, -10}}, rotation = 0)));
+  ChargeDependentResistor R_tl(R_0 = 0.04669, k1=6.603, k2=-29.14) annotation(
     Placement(visible = true, transformation(origin = {30, 40}, extent = {{10, -10}, {-10, 10}}, rotation = 0)));
-  Modelica.Electrical.Analog.Basic.Capacitor C_tl(C = 5000) annotation(
-    Placement(visible = true, transformation(origin = {30, 12}, extent = {{10, -10}, {-10, 10}}, rotation = 0)));
+  ChargeDependentCapacitor C_tl(C_0 = 4475, k1=-6056, k2=-27.12) annotation(
+    Placement(visible = true, transformation(origin = {30, 12}, extent = {{10, 10}, {-10, -10}}, rotation = 0)));
   Modelica.Electrical.Analog.Sensors.CurrentSensor I_bat annotation(
     Placement(visible = true, transformation(origin = {60, 40}, extent = {{10, 10}, {-10, -10}}, rotation = 180)));
   Modelica.Blocks.Continuous.Integrator integrator(initType = Modelica.Blocks.Types.Init.InitialState, k = 1 / C_bat) annotation(
@@ -18,10 +23,6 @@ model TheveninBasedBattery "Basic Battery Model based on Thevenin electrical mod
     Placement(visible = true, transformation(origin = {15, -43}, extent = {{7, -7}, {-7, 7}}, rotation = 0)));
   Load load(I_req = 0.08, v(start = 0.0001)) annotation(
     Placement(visible = true, transformation(origin = {42, -80}, extent = {{-10, 10}, {10, -10}}, rotation = 180)));
-  Modelica.Electrical.Analog.Basic.Resistor R_ts(R = 50) annotation(
-    Placement(visible = true, transformation(origin = {-10, 40}, extent = {{10, -10}, {-10, 10}}, rotation = 0)));
-  Modelica.Electrical.Analog.Basic.Capacitor C_ts(C = 500) annotation(
-    Placement(visible = true, transformation(origin = {-10, 12}, extent = {{10, -10}, {-10, 10}}, rotation = 0)));
   Modelica.Electrical.Analog.Basic.Ground GND annotation(
     Placement(visible = true, transformation(origin = {-88, -90}, extent = {{-10, -10}, {10, 10}}, rotation = 0)));
   VariableVoltageSource signalVoltage(v(start = 4.1))  annotation(
@@ -32,22 +33,22 @@ model TheveninBasedBattery "Basic Battery Model based on Thevenin electrical mod
     Placement(visible = true, transformation(origin = {-76, -36}, extent = {{6, -6}, {-6, 6}}, rotation = 0)));
 equation
   // main circuit
-  connect(signalVoltage.p, R_0.n) annotation(
+  connect(signalVoltage.p, R_s.n) annotation(
     Line(points = {{-100, -26}, {-100, 40}, {-58, 40}}, color = {0, 0, 255}));
   
-  connect(R_0.p, R_ts.n) annotation(
+  connect(R_s.p, R_ts.n) annotation(
     Line(points = {{-20, 40}, {-38, 40}, {-38, 40}, {-38, 40}}, color = {0, 0, 255}));
   connect(R_ts.n, C_ts.n) annotation(
-    Line(points = {{-20, 40}, {-20, 40}, {-20, 12}, {-20, 12}}, color = {0, 0, 255}));
+    Line(points = {{-20, 40}, {-20, 12}}, color = {0, 0, 255}));
   connect(R_ts.p, C_ts.p) annotation(
-    Line(points = {{0, 40}, {0, 40}, {0, 12}, {0, 12}}, color = {0, 0, 255}));
+    Line(points = {{0, 40}, {0, 12}}, color = {0, 0, 255}));
     
   connect(R_ts.p, R_tl.n) annotation(
     Line(points = {{0, 40}, {20, 40}, {20, 40}, {20, 40}}, color = {0, 0, 255}));
   connect(R_tl.n, C_tl.n) annotation(
-    Line(points = {{20, 40}, {20, 40}, {20, 12}, {20, 12}}, color = {0, 0, 255}));
+    Line(points = {{20, 40}, {20, 12}}, color = {0, 0, 255}));
   connect(R_tl.p, C_tl.p) annotation(
-    Line(points = {{40, 12}, {40, 12}, {40, 40}, {40, 40}}, color = {0, 0, 255}));
+    Line(points = {{40, 12}, {40, 12}}, color = {0, 0, 255}));
   
   connect(R_tl.p, I_bat.p) annotation(
     Line(points = {{40, 40}, {50, 40}}, color = {0, 0, 255}));
@@ -64,7 +65,20 @@ equation
   connect(Sum.y, SOC_to_U_bat.u[1]) annotation(
     Line(points = {{-32, -36}, {-25, -36}}, color = {0, 0, 127}));
   
-  when Sum.y < 0 then
+  SoC = Sum.y;
+  
+  connect(Sum.y, R_s.SoC) annotation(
+    Line(points = {{-24, -36}, {-28, -36}, {-28, 0}, {-74, 0}, {-74, 60}, {-48, 60}, {-48, 52}, {-48, 52}, {-48, 52}}, color = {0, 0, 127}));
+  connect(Sum.y, R_ts.SoC) annotation(
+    Line(points = {{-24, -36}, {-28, -36}, {-28, 0}, {-74, 0}, {-74, 60}, {-10, 60}, {-10, 52}, {-10, 52}}, color = {0, 0, 127}));
+  connect(Sum.y, R_tl.SoC) annotation(
+    Line(points = {{-24, -36}, {-28, -36}, {-28, 0}, {-74, 0}, {-74, 60}, {30, 60}, {30, 52}, {30, 52}}, color = {0, 0, 127}));
+  connect(Sum.y, C_ts.SoC) annotation(
+    Line(points = {{-24, -36}, {-28, -36}, {-28, -6}, {-10, -6}, {-10, 0}, {-10, 0}}, color = {0, 0, 127}));
+  connect(Sum.y, C_tl.SoC) annotation(
+    Line(points = {{-24, -36}, {-28, -36}, {-28, -6}, {30, -6}, {30, 0}, {30, 0}}, color = {0, 0, 127}));
+  
+  when SoC < 0 then
     terminate("battery has discharged");
   end when;
   
@@ -83,9 +97,10 @@ equation
     Line(points = {{-88, -80}, {32, -80}}, color = {0, 0, 255}));
   connect(load.p, I_bat.n) annotation(
     Line(points = {{52, -80}, {70, -80}, {70, 40}}, color = {0, 0, 255}));
+  
   annotation(
     Diagram(coordinateSystem(initialScale = 0.1)),
     uses(Modelica(version = "3.2.3")),
     Documentation,
-    experiment(StartTime = 0, StopTime = 3600, Tolerance = 1e-06, Interval = 1.00056));
+    experiment(StartTime = 0, StopTime = 36000, Tolerance = 1e-06, Interval = 0.100083));
 end TheveninBasedBattery;
