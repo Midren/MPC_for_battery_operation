@@ -15,7 +15,7 @@ model CoulombSocCounter
     Placement(visible = true, transformation(origin = {-6, 36}, extent = {{10, -10}, {-10, 10}}, rotation = 0)));
   Modelica.Blocks.Math.Sum Sum(k = {1, -1}, nin = 2) annotation(
     Placement(visible = true, transformation(origin = {-6, -2}, extent = {{10, -10}, {-10, 10}}, rotation = 0)));
-  Modelica.Blocks.Nonlinear.VariableLimiter socLimiter annotation(
+  Modelica.Blocks.Nonlinear.VariableLimiter socLimiter(homotopyType = Modelica.Blocks.Types.VariableLimiterHomotopy.Linear,limitsAtInit = true, strict = true)  annotation(
     Placement(visible = true, transformation(origin = { -36, -2}, extent = {{10, -10}, {-10, 10}}, rotation = 0)));
   Modelica.Blocks.Interfaces.RealOutput SoC annotation(
     Placement(visible = true, transformation(origin = {0, -110}, extent = {{-10, -10}, {10, 10}}, rotation = -90), iconTransformation(origin = {0, -110}, extent = {{-10, -10}, {10, 10}}, rotation = -90)));
