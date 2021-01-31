@@ -1,6 +1,7 @@
 model TheveninBasedBattery "Basic Battery Model based on Thevenin electrical model"
-  constant Real C_bat = 1.1;
-  Real I_req(start = -C_bat);
+  parameter Real C_bat = 1.1;
+  Real SoH(start=1);
+  //Real I_req(start = -C_bat);
   // Because we need in seconds
   ChargeDependentResistor R_s(R_0 = 0.07446, k1 = 0.1562, k2 = -24.37) annotation(
     Placement(visible = true, transformation(origin = {-48, 40}, extent = {{10, -10}, {-10, 10}}, rotation = 0)));
@@ -16,21 +17,16 @@ model TheveninBasedBattery "Basic Battery Model based on Thevenin electrical mod
     Placement(visible = true, transformation(origin = {60, 40}, extent = {{10, 10}, {-10, -10}}, rotation = 180)));
   Modelica.Electrical.Analog.Basic.Ground GND annotation(
     Placement(visible = true, transformation(origin = {-86, -100}, extent = {{-10, -10}, {10, 10}}, rotation = 0)));
-  Load load(I_req = I_req, v(start = 0.01)) annotation(
-    Placement(visible = true, transformation(origin = {40, -90}, extent = {{-10, 10}, {10, -10}}, rotation = 180)));
-  CoulombSocCounter coulombSocCounter(C_bat = C_bat) annotation(
-    Placement(visible = true, transformation(origin = {28, -22}, extent = {{-10, -10}, {10, 10}}, rotation = -90)));
+  CoulombSocCounter coulombSocCounter annotation(
+    Placement(visible = true, transformation(origin = {30, -22}, extent = {{-10, -10}, {10, 10}}, rotation = -90)));
   voltageSourceSocDependant voltageSource(SocToULookupTableFileName = "/home/midren/bachelor/soc_to_u_bat_tookup.txt") annotation(
     Placement(visible = true, transformation(origin = {-86, -22}, extent = {{-10, -10}, {10, 10}}, rotation = -90)));
-  CapacityFadingCalculator capacityFadingCalc(C_bat = C_bat, k_s1 = -2.046e-4, k_s2 = -2.1665, k_s3 = -1.408e-5, k_s4 = 3.065)  annotation(
-    Placement(visible = true, transformation(origin = {6, -52}, extent = {{-10, -10}, {10, 10}}, rotation = -90)));
+  CapacityFadingCalculator capacityFadingCalc(C_bat = C_bat) annotation(
+    Placement(visible = true, transformation(origin = {4, -58}, extent = {{-10, -10}, {10, 10}}, rotation = -90)));
+  Modelica.Electrical.Analog.Sources.PulseCurrent pulseLoad(I = 2 * C_bat, offset = -C_bat, period = 2, width = 50)  annotation(
+    Placement(visible = true, transformation(origin = {34, -90}, extent = {{10, -10}, {-10, 10}}, rotation = 0)));
 equation
-  I_req = C_bat;
-  //if time < 0.5 or time > 0.7 then
-  //  I_req = C_bat;
-  //else
-  //  I_req = - C_bat;
-  //end if;
+  SoH = 1 - capacityFadingCalc.capacityFade/(0.2*C_bat);
 // main circuit
   connect(R_s.p, R_ts.n) annotation(
     Line(points = {{-20, 40}, {-38, 40}, {-38, 40}, {-38, 40}}, color = {0, 0, 255}));
@@ -48,36 +44,38 @@ equation
     Line(points = {{40, 40}, {50, 40}}, color = {0, 0, 255}));
 // Find required voltage
 // Find voltage difference and modify signalVoltage
-  connect(GND.p, load.n) annotation(
-    Line(points = {{-86, -90}, {30, -90}}, color = {0, 0, 255}));
-  connect(load.p, I_bat.n) annotation(
-    Line(points = {{50, -90}, {70, -90}, {70, 40}}, color = {0, 0, 255}));
   connect(I_bat.i, coulombSocCounter.I) annotation(
-    Line(points = {{60, 30}, {60, -22}, {38, -22}}, color = {0, 0, 127}));
+    Line(points = {{60, 30}, {60, -28}, {40, -28}}, color = {0, 0, 127}));
   connect(coulombSocCounter.SoC, C_ts.SoC) annotation(
-    Line(points = {{17, -22}, {-10, -22}, {-10, 0}}, color = {0, 0, 127}));
+    Line(points = {{19, -22}, {-10, -22}, {-10, 0}}, color = {0, 0, 127}));
   connect(coulombSocCounter.SoC, C_tl.SoC) annotation(
-    Line(points = {{17, -22}, {-10, -22}, {-10, -8}, {30, -8}, {30, 0}}, color = {0, 0, 127}));
+    Line(points = {{19, -22}, {-10, -22}, {-10, -8}, {30, -8}, {30, 0}}, color = {0, 0, 127}));
   connect(coulombSocCounter.SoC, R_tl.SoC) annotation(
-    Line(points = {{17, -22}, {6, -22}, {6, 60}, {30, 60}, {30, 52}}, color = {0, 0, 127}));
+    Line(points = {{19, -22}, {6, -22}, {6, 60}, {30, 60}, {30, 52}}, color = {0, 0, 127}));
   connect(coulombSocCounter.SoC, R_ts.SoC) annotation(
-    Line(points = {{17, -22}, {6, -22}, {6, 60}, {-10, 60}, {-10, 52}}, color = {0, 0, 127}));
+    Line(points = {{19, -22}, {6, -22}, {6, 60}, {-10, 60}, {-10, 52}}, color = {0, 0, 127}));
   connect(coulombSocCounter.SoC, R_s.SoC) annotation(
-    Line(points = {{17, -22}, {6, -22}, {6, 60}, {-48, 60}, {-48, 52}}, color = {0, 0, 127}));
+    Line(points = {{19, -22}, {6, -22}, {6, 60}, {-48, 60}, {-48, 52}}, color = {0, 0, 127}));
   connect(voltageSource.n, GND.p) annotation(
     Line(points = {{-86, -32}, {-86, -90}}, color = {0, 0, 255}));
   connect(voltageSource.p, R_s.n) annotation(
     Line(points = {{-86, -12}, {-86, 40}, {-58, 40}}, color = {0, 0, 255}));
   connect(coulombSocCounter.SoC, voltageSource.SoC) annotation(
-    Line(points = {{17, -22}, {-74, -22}}, color = {0, 0, 127}));
+    Line(points = {{19, -22}, {-74, -22}}, color = {0, 0, 127}));
   connect(coulombSocCounter.SoC, capacityFadingCalc.SoC) annotation(
-    Line(points = {{18, -22}, {6, -22}, {6, -42}, {6, -42}}, color = {0, 0, 127}));
+    Line(points = {{19, -22}, {19, -32}, {4, -32}, {4, -48}}, color = {0, 0, 127}));
   connect(capacityFadingCalc.I, I_bat.i) annotation(
-    Line(points = {{16, -52}, {60, -52}, {60, 30}, {60, 30}}, color = {0, 0, 127}));
+    Line(points = {{14, -58}, {60, -58}, {60, 30}}, color = {0, 0, 127}));
+  connect(I_bat.n, pulseLoad.p) annotation(
+    Line(points = {{70, 40}, {80, 40}, {80, -90}, {44, -90}}, color = {0, 0, 255}));
+  connect(pulseLoad.n, GND.p) annotation(
+    Line(points = {{24, -90}, {-86, -90}, {-86, -90}, {-86, -90}}, color = {0, 0, 255}));
+  connect(capacityFadingCalc.Q_us, coulombSocCounter.Q_us) annotation(
+    Line(points = {{-6, -58}, {-20, -58}, {-20, -74}, {70, -74}, {70, -18}, {40, -18}, {40, -18}}, color = {0, 0, 127}));
 protected
   annotation(
     Diagram(coordinateSystem(initialScale = 0.1)),
     uses(Modelica(version = "3.2.3")),
     Documentation,
-    experiment(StartTime = 0, StopTime = 1, Tolerance = 1e-06, Interval = 0.01));
+    experiment(StartTime = 0, StopTime = 10000, Tolerance = 1e-06, Interval = 100));
 end TheveninBasedBattery;
