@@ -82,7 +82,7 @@ model TheveninBasedBattery "Basic Battery Model based on Thevenin electrical mod
     Modelica.Blocks.Interfaces.RealInput SoC;
     input Parameters params;
   equation
-    C = params.C_0 + params.k1 * SoC + params.k2 * SoC ^ 2 + params.k3 * SoC ^ 3 + params.k4 * SoC ^ 4 + params.k5 * SoC ^ 5 + params.k6 * SoC ^ 6;
+    C = max(params.C_0 + params.k1 * SoC + params.k2 * (SoC ^ 2) + params.k3 * (SoC ^ 3) + params.k4 * (SoC ^ 4) + params.k5 * (SoC ^ 5) + params.k6 * (SoC ^ 6), 0);
   end ChargeDependentCapacitor;
 
   model CoulombSocCounter
@@ -291,7 +291,7 @@ equation
   C_ts.params = currentParams.C_ts;
   R_tl.params = currentParams.R_tl;
   C_tl.params = currentParams.C_tl;
-  //currentParams = dischargingParams;
+  //currentParams = chargingParams;
   currentParams = if I_bat.i < 0 then chargingParams else dischargingParams;
 // main circuit
   connect(R_s.p, R_ts.n) annotation(
