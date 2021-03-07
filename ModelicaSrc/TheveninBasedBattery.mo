@@ -282,7 +282,7 @@ model TheveninBasedBattery "Basic Battery Model based on Thevenin electrical mod
     Placement(visible = true, transformation(origin = {-86, -22}, extent = {{-10, -10}, {10, 10}}, rotation = -90)));
   CapacityFadingCalculator capacityFadingCalc(C_bat = C_bat, params = capacityFadingParams) annotation(
     Placement(visible = true, transformation(origin = {4, -58}, extent = {{-10, -10}, {10, 10}}, rotation = -90)));
-  Modelica.Electrical.Analog.Sources.PulseCurrent pulseLoad(I = 2 * I_dis, offset = -I_dis, period = 2, width = 50) annotation(
+  Modelica.Electrical.Analog.Sources.PulseCurrent pulseLoad(I = 2 * I_dis, offset = -I_dis, period = 7200, width = 50) annotation(
     Placement(visible = true, transformation(origin = {34, -90}, extent = {{10, -10}, {-10, 10}}, rotation = 0)));
 equation
   SoH = 1 - capacityFadingCalc.capacityFade / (0.2 * C_bat);
@@ -291,8 +291,11 @@ equation
   C_ts.params = currentParams.C_ts;
   R_tl.params = currentParams.R_tl;
   C_tl.params = currentParams.C_tl;
-  //currentParams = chargingParams;
-  currentParams = if I_bat.i < 0 then chargingParams else dischargingParams;
+  if noEvent(I_bat.i < 0) then
+    currentParams = chargingParams;
+  else
+    currentParams = dischargingParams;
+  end if;
 // main circuit
   connect(R_s.p, R_ts.n) annotation(
     Line(points = {{-20, 40}, {-38, 40}, {-38, 40}, {-38, 40}}, color = {0, 0, 255}));
