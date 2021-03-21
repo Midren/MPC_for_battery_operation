@@ -40,3 +40,7 @@ __pycache__/
 env/
 venv/
 .ropeproject
+
+# editor related
+.vscode
+tags
