@@ -31,7 +31,7 @@ stop
 success
 
 # Ignore JModelica output
-*_html_diagnostic
+*_html_diagnostics
 *.fmu
 *_debug.txt
 *_log.txt
