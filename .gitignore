@@ -44,3 +44,6 @@ venv/
 # editor related
 .vscode
 tags
+
+# OS related
+.DS_Store
