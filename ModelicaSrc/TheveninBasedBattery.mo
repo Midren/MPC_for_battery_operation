@@ -142,7 +142,7 @@ model TheveninBasedBattery "Basic Battery Model based on Thevenin electrical mod
     parameter Real C_bat "Nominal capacity in Ah";
     parameter Parameters params;
     Modelica.Blocks.Logical.LessThreshold isCharging(threshold=0);
-    //Modelica.Blocks.Interfaces.BooleanOutput isChargingOutput;
+
     Real cycleStartTime(start = 0);
     Real cycleLen;
     Real SoC_avg(start = 0);
@@ -151,6 +151,7 @@ model TheveninBasedBattery "Basic Battery Model based on Thevenin electrical mod
     Real L(start = 0) "Life ageing parameter";
     Real stepCapacityFade(start = 0);
     Real capacityFade(start = 0);
+
     Modelica.Blocks.Interfaces.RealInput SoC annotation(
       Placement(visible = true, transformation(origin = {-100, 0}, extent = {{-20, -20}, {20, 20}}, rotation = 0), iconTransformation(origin = {-100, 0}, extent = {{-20, -20}, {20, 20}}, rotation = 0)));
     Modelica.Blocks.Interfaces.RealInput I annotation(
@@ -169,15 +170,11 @@ model TheveninBasedBattery "Basic Battery Model based on Thevenin electrical mod
       Placement(visible = true, transformation(origin = {0, -110}, extent = {{-10, 10}, {10, -10}}, rotation = -90), iconTransformation(origin = {0, -110}, extent = {{-10, 10}, {10, -10}}, rotation = -90)));
   equation
     connect(isCharging.u, I);
-    //isCharging = if I < 0 then true else false;
     connect(socIntegrator.reset, isCharging.y);
     connect(socSquareIntegrator.reset, isCharging.y);
     connect(Ah_throughput.reset, isCharging.y);
-    //isChargingOutput = not isCharging;
-    //connect(socIntegrator.reset, isChargingOutput);
-    //connect(socSquareIntegrator.reset, isChargingOutput);
-    //connect(Ah_throughput.reset, isChargingOutput);
     L = 1 - Q_us / C_bat;
+
     when isCharging.y == false then
       cycleLen = time - pre(cycleStartTime);
       SoC_avg = 1 / cycleLen * pre(socIntegrator.y);
@@ -197,6 +194,7 @@ model TheveninBasedBattery "Basic Battery Model based on Thevenin electrical mod
       Q_us = pre(Q_us);
       cycleStartTime = pre(cycleStartTime);
     end when;
+
     connect(SoC, socIntegrator.u) annotation(
       Line(points = {{-100, 0}, {-79, 0}, {-79, 20}, {-62, 20}}, color = {0, 0, 127}));
     connect(SoC, socSquare.u1) annotation(
@@ -274,7 +272,7 @@ model TheveninBasedBattery "Basic Battery Model based on Thevenin electrical mod
   
   parameter Real C_bat = 1.1;
   parameter Real I_dis = C_bat/3600;
-  parameter String SocToOcvTableFileName = "/Users/roman.milishchuk/bachelor/soc_to_u_bat_tookup.txt";
+  parameter String SocToOcvTableFileName = "/home/developer/modelica/soc_to_u_bat_tookup.txt";
   parameter CapacityFadingCalculator.Parameters capacityFadingParams(K_co = 3.66e-5, K_ex = 0.717, K_soc = 0.916);
   Real SoH(start = 1);
   TheveninBasedModelParameters currentParams;

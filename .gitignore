@@ -30,6 +30,13 @@ status
 stop
 success
 
+# Ignore JModelica output
+*_html_diagnostic
+*.fmu
+*_debug.txt
+*_log.txt
+*_res.mat
+
 # Python related
 .ipynb_checkpoints
 __pycache__/
