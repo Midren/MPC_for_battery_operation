@@ -91,7 +91,7 @@ package BatteryMPC
         Modelica.Blocks.Interfaces.RealInput SoC;
         input Parameters params;
       equation
-        R = params.R_0 + params.k1 * exp(-params.k2 * SoC) + params.k3 * SoC;
+        R = 3600*(params.R_0 + params.k1 * exp(-params.k2 * SoC) + params.k3 * SoC);
       end ChargeDependentResistor;
 
       model ChargeDependentCapacitor
@@ -110,7 +110,7 @@ package BatteryMPC
         Modelica.Blocks.Interfaces.RealInput SoC;
         input Parameters params;
       equation
-        C = max(params.C_0 + params.k1 * SoC + params.k2 * SoC ^ 2 + params.k3 * SoC ^ 3 + params.k4 * SoC ^ 4 + params.k5 * SoC ^ 5 + params.k6 * SoC ^ 6, 0);
+        C = max(params.C_0 + params.k1 * SoC + params.k2 * SoC ^ 2 + params.k3 * SoC ^ 3 + params.k4 * SoC ^ 4 + params.k5 * SoC ^ 5 + params.k6 * SoC ^ 6, 0)/3600;
       end ChargeDependentCapacitor;
 
       model CoulombSocCounter
@@ -252,7 +252,7 @@ package BatteryMPC
         Modelica.Blocks.Interfaces.RealInput SoC;
         input Parameters params;
       equation
-        R = params.R_0 + params.k1 * SoC + params.k2 * SoC ^ 2 + params.k3 * SoC ^ 3 + params.k4 * SoC ^ 4;
+        R = (params.R_0 + params.k1 * SoC + params.k2 * SoC ^ 2 + params.k3 * SoC ^ 3 + params.k4 * SoC ^ 4)*3600;
       end SeriesResistor;
 
       model ShortTimeTransientResistor
