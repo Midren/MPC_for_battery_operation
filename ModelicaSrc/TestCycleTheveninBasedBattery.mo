@@ -122,79 +122,253 @@ model TestCycleTheveninBasedBattery "Basic Battery Model based on Thevenin elect
   end CoulombSocCounter;
 
   model CapacityFadingCalculator
+    model IntegratorWithReset
+      extends Modelica.Blocks.Continuous.Integrator;
+      Modelica.Blocks.Interfaces.BooleanInput reset annotation(
+        Placement(visible = true, transformation(origin = {-120, -60}, extent = {{-20, -20}, {20, 20}}, rotation = 0), iconTransformation(origin = {-120, -80}, extent = {{-20, -20}, {20, 20}}, rotation = -360)));
+    equation
+      when reset then
+        reinit(y, y_start);
+      end when;
+    end IntegratorWithReset;
+    
+    block VarianceWithReset
+      extends Modelica.Blocks.Icons.Block;
+      parameter Modelica.SIunits.Time t_eps(min=100*Modelica.Constants.eps)=1e-7
+        "Variance calculation starts at startTime + t_eps"
+        annotation(Dialog(group="Advanced"));
+    
+      Modelica.Blocks.Interfaces.RealInput u "Noisy input signal" annotation (Placement(transformation(extent={{-140,-20},{-100,20}})));
+      Modelica.Blocks.Interfaces.RealOutput y "Variance of the input signal"
+        annotation (Placement(transformation(extent={{100,-10},{120,10}})));
+      Modelica.Blocks.Interfaces.BooleanInput reset annotation(
+        Placement(visible = true, transformation(origin = {-120, -60}, extent = {{-20, -20}, {20, 20}}, rotation = 0), iconTransformation(origin = {-120, -80}, extent = {{-20, -20}, {20, 20}}, rotation = -360)));
+    protected  
+      Real mu "Mean value (state variable)";
+      Real var "Variance (state variable)";
+      Real t_0(fixed=false, start=0) "Start time";
+    initial equation
+      t_0 = time;
+      mu  = u;
+      var = 0;
+    equation
+      when reset then
+        reinit(mu, u);
+        reinit(var, 0);
+        t_0 = time;
+      end when;
+      //t_0 = t_0 + 0;
+      der(mu)  = noEvent(if time >= t_0 + t_eps then (u-mu)/(time-t_0)             else 0);
+      der(var) = noEvent(if time >= t_0 + t_eps then ((u-mu)^2 - var)/(time - t_0) else 0);
+      y        = noEvent(if time >= t_0 + t_eps then max(var,0)                    else 0);
+    end VarianceWithReset;
+  
+    block MeanWithReset
+        "Calculates the empirical expectation (mean) value of its input signal"
+      extends Modelica.Blocks.Icons.Block;
+      parameter Modelica.SIunits.Time t_eps(min= 100*Modelica.Constants.eps)=1e-7
+        "Mean value calculation starts at startTime + t_eps"
+        annotation(Dialog(group="Advanced"));
+    
+      Modelica.Blocks.Interfaces.RealInput u "Noisy input signal" annotation (Placement(transformation(extent={{-140,-20},{-100,20}})));
+      Modelica.Blocks.Interfaces.RealOutput y
+        "Expectation (mean) value of the input signal"
+        annotation (Placement(transformation(extent={{100,-10},{120,10}})));
+      Modelica.Blocks.Interfaces.BooleanInput reset annotation(
+        Placement(visible = true, transformation(origin = {-120, -60}, extent = {{-20, -20}, {20, 20}}, rotation = 0), iconTransformation(origin = {-120, -80}, extent = {{-20, -20}, {20, 20}}, rotation = -360)));
+    protected
+      Real mu "Internal integrator variable";
+      Real t_0(fixed=false, start=0) "Start time";
+    initial equation
+      t_0 = time;
+      mu  = u;
+    equation
+      when reset then
+        reinit(mu, u);
+        t_0 = time;
+      end when;
+      //t_0 = t_0 + 0;
+      der(mu) = noEvent(if time >= t_0 + t_eps then (u-mu)/(time-t_0) else 0);
+      y       = noEvent(if time >= t_0 + t_eps then mu                else u);
+    end MeanWithReset;
+  
+    block StandardDeviationWithReset
+      "Calculates the empirical standard deviation of its input signal"
+      extends Modelica.Blocks.Icons.Block;
+      parameter Modelica.SIunits.Time t_eps(min=100*Modelica.Constants.eps)=1e-7
+        "Standard deviation calculation starts at startTime + t_eps"
+        annotation(Dialog(group="Advanced"));
+    
+      Modelica.Blocks.Interfaces.RealInput u "Noisy input signal" annotation (Placement(transformation(extent={{-140,-20},{-100,20}})));
+      Modelica.Blocks.Interfaces.RealOutput y
+        "Standard deviation of the input signal"
+        annotation (Placement(transformation(extent={{100,-10},{120,10}})));
+      Modelica.Blocks.Interfaces.BooleanInput reset annotation(
+        Placement(visible = true, transformation(origin = {-120, -60}, extent = {{-20, -20}, {20, 20}}, rotation = 0), iconTransformation(origin = {-120, -80}, extent = {{-20, -20}, {20, 20}}, rotation = -360)));
+    
+      VarianceWithReset variance(t_eps=t_eps)
+        annotation (Placement(transformation(extent={{-60,-10},{-40,10}})));
+      Modelica.Blocks.Math.Sqrt sqrt1
+        annotation (Placement(transformation(extent={{-20,-10},{0,10}})));
+    equation
+      connect(variance.reset, reset);
+      connect(variance.u, u) annotation (Line(
+          points={{-62,0},{-120,0}}, color={0,0,127}));
+      connect(sqrt1.u, variance.y) annotation (Line(
+          points={{-22,0},{-39,0}}, color={0,0,127}));
+      connect(sqrt1.y, y) annotation (Line(
+          points={{1,0},{110,0}}, color={0,0,127}));
+      annotation (Documentation(revisions="<html>
+    <table border=1 cellspacing=0 cellpadding=2>
+    <tr><th>Date</th> <th align=\"left\">Description</th></tr>
+    
+    <tr><td> June 22, 2015 </td>
+      <td>
+    
+    <table border=0>
+    <tr><td>
+           <img src=\"modelica://Modelica/Resources/Images/Blocks/Noise/dlr_logo.png\">
+    </td><td valign=\"bottom\">
+           Initial version implemented by
+           A. Kl&ouml;ckner, F. v.d. Linden, D. Zimmer, M. Otter.<br>
+           <a href=\"http://www.dlr.de/rmc/sr/en\">DLR Institute of System Dynamics and Control</a>
+    </td></tr></table>
+    </td></tr>
+    
+    </table>
+    </html>",                                   info="<html>
+    <p>This block calculates the standard deviation of its input signal. The standard deviation is the square root of the signal&#39;s variance:</p>
+    <blockquote>
+    <pre>y = sqrt( variance(u) )</pre>
+    </blockquote>
+    <p>
+    The <a href=\"modelica://Modelica.Blocks.Math.Variance\">Variance</a> block is used to
+    calculate variance(u).
+    </p>
+    <p>The parameter t_eps is used to guard against division by zero (the computation of the standard deviation
+    starts at &lt;<em>simulation start time</em>&gt; + t_eps and before that time instant y = 0).
+    </p>
+    
+    <p>
+    This block is demonstrated in the examples
+    <a href=\"modelica://Modelica.Blocks.Examples.NoiseExamples.UniformNoiseProperties\">UniformNoiseProperties</a> and
+    <a href=\"modelica://Modelica.Blocks.Examples.NoiseExamples.NormalNoiseProperties\">NormalNoiseProperties</a>.
+    </p>
+    </html>"),
+        Icon(graphics={
+            Line(points={{-76,68},{-76,-80}}, color={192,192,192}),
+            Line(points={{-86,0},{72,0}}, color={192,192,192}),
+            Line(
+               points={{-76,-13},{-62,-13},{-62,3},{-54,3},{-54,-45},{-46,-45},{-46,
+                  -23},{-38,-23},{-38,61},{-30,61},{-30,29},{-30,29},{-30,-31},{-20,
+                  -31},{-20,-13},{-10,-13},{-10,-41},{0,-41},{0,41},{6,41},{6,55},
+                  {12,55},{12,-1},{22,-1},{22,11},{28,11},{28,-19},{38,-19},{38,53},
+                  {48,53},{48,19},{56,19},{56,-47},{66,-47}},
+                color={215,215,215}),
+            Polygon(
+              points={{94,0},{72,8},{72,-8},{94,0}},
+              lineColor={192,192,192},
+              fillColor={192,192,192},
+              fillPattern=FillPattern.Solid),
+            Line(
+              points={{-76,46},{70,46}},
+              color={215,215,215}),
+            Line(
+              points={{-16,0},{-16,30}}),
+            Polygon(
+              points={{-76,90},{-84,68},{-68,68},{-76,90}},
+              lineColor={192,192,192},
+              fillColor={192,192,192},
+              fillPattern=FillPattern.Solid),
+            Polygon(
+              points={{-16,46},{-24,24},{-8,24},{-16,46}},
+              fillPattern=FillPattern.Solid)}));
+    end StandardDeviationWithReset;
+  
     record Parameters
       Real K_co = 3.66e-5;
       Real K_ex = 0.717;
       Real K_soc = 0.916;
     end Parameters;
-
+  
     parameter Real C_bat "Nominal capacity in Ah";
     parameter Parameters params;
-    Boolean isCharging(start = true);
-    Real cycleStartTime(start = 0);
-    Real cycleLen;
-    Real SoC_avg(start = 0);
-    Real SoC_dev(start = 0);
-    Real n_m(start = 0) "Effective number of throughput cycles";
+    Modelica.Blocks.Logical.LessThreshold isCharging(threshold = 0);
+    //Real cycleStartTime(start = 0);
+    //Real cycleLen;
+    //Real SoC_avg(start = 0);
+    //Real SoC_dev(start = 0);
+    //Real n_m(start = 0) "Effective number of throughput cycles";
     Real L(start = 0) "Life ageing parameter";
     Real stepCapacityFade(start = 0);
     Real capacityFade(start = 0);
     Modelica.Blocks.Interfaces.RealInput SoC annotation(
-      Placement(visible = true, transformation(origin = {-100, 0}, extent = {{-20, -20}, {20, 20}}, rotation = 0), iconTransformation(origin = {-100, 0}, extent = {{-20, -20}, {20, 20}}, rotation = 0)));
+      Placement(visible = true, transformation(origin = {0, 118}, extent = {{-20, -20}, {20, 20}}, rotation = -90), iconTransformation(origin = {-100, 0}, extent = {{-20, -20}, {20, 20}}, rotation = 0)));
     Modelica.Blocks.Interfaces.RealInput I annotation(
-      Placement(visible = true, transformation(origin = {0, 100}, extent = {{-20, -20}, {20, 20}}, rotation = -90), iconTransformation(origin = {0, 100}, extent = {{-20, -20}, {20, 20}}, rotation = -90)));
-    Modelica.Blocks.Continuous.Integrator socIntegrator(use_reset = true, y_start = 0) annotation(
-      Placement(visible = true, transformation(origin = {-50, 20}, extent = {{-10, -10}, {10, 10}}, rotation = 0)));
-    Modelica.Blocks.Math.Product socSquare annotation(
-      Placement(visible = true, transformation(origin = {-50, -20}, extent = {{-10, -10}, {10, 10}}, rotation = 0)));
-    Modelica.Blocks.Continuous.Integrator socSquareIntegrator(use_reset = true, y_start = 0) annotation(
-      Placement(visible = true, transformation(origin = {-10, -20}, extent = {{-10, -10}, {10, 10}}, rotation = 0)));
-    Modelica.Blocks.Continuous.Integrator Ah_throughput(use_reset = true, y_start = 0) annotation(
-      Placement(visible = true, transformation(origin = {68, 50}, extent = {{-10, -10}, {10, 10}}, rotation = 0)));
+      Placement(visible = true, transformation(origin = {120, 0}, extent = {{-20, 20}, {20, -20}}, rotation = 180), iconTransformation(origin = {0, 100}, extent = {{-20, -20}, {20, 20}}, rotation = -90)));
+    BatteryMPC.BatteryWithFullCycle.TheveninBasedBattery.CapacityFadingCalculator.IntegratorWithReset Ah_throughput(y_start = 0) annotation(
+      Placement(visible = true, transformation(origin = {10, 0}, extent = {{10, -10}, {-10, 10}}, rotation = 0)));
     Modelica.Blocks.Math.Abs I_abs annotation(
-      Placement(visible = true, transformation(origin = {22, 50}, extent = {{-10, -10}, {10, 10}}, rotation = 0)));
+      Placement(visible = true, transformation(origin = {42, 0}, extent = {{10, -10}, {-10, 10}}, rotation = 0)));
     Modelica.Blocks.Interfaces.RealOutput Q_us(start = C_bat) annotation(
-      Placement(visible = true, transformation(origin = {0, -110}, extent = {{-10, 10}, {10, -10}}, rotation = -90), iconTransformation(origin = {0, -110}, extent = {{-10, 10}, {10, -10}}, rotation = -90)));
+      Placement(visible = true, transformation(origin = {-110, 0}, extent = {{-10, 10}, {10, -10}}, rotation = 180), iconTransformation(origin = {0, -110}, extent = {{-10, 10}, {10, -10}}, rotation = -90)));
+  MeanWithReset SoC_avg annotation(
+      Placement(visible = true, transformation(origin = {-30, 70}, extent = {{10, -10}, {-10, 10}}, rotation = 0)));
+  StandardDeviationWithReset SoC_dev annotation(
+      Placement(visible = true, transformation(origin = {30, 70}, extent = {{-10, -10}, {10, 10}}, rotation = 0)));
+  Modelica.Blocks.Math.Product SoC_dev_normed annotation(
+      Placement(visible = true, transformation(origin = {70, 58}, extent = {{-10, -10}, {10, 10}}, rotation = 0)));
+  Modelica.Blocks.Sources.Constant unit_of_soc_for_cycle(k = 3.4641016151)  annotation(
+      Placement(visible = true, transformation(origin = {30, 44}, extent = {{-10, -10}, {10, 10}}, rotation = 0)));
+  Modelica.Blocks.Math.Division n_m annotation(
+      Placement(visible = true, transformation(origin = {-30, -14}, extent = {{10, -10}, {-10, 10}}, rotation = 0)));
+  Modelica.Blocks.Sources.Constant cycle_charge(k = 2 * C_bat)  annotation(
+      Placement(visible = true, transformation(origin = {10, -30}, extent = {{10, -10}, {-10, 10}}, rotation = 0)));
+  
   equation
-    isCharging = if I < 0 then true else false;
+    connect(isCharging.u, I) annotation(
+      Line);
+    connect(isCharging.y, SoC_avg.reset);
+    connect(isCharging.y, SoC_dev.reset);
+    connect(isCharging.y, Ah_throughput.reset) annotation(
+      Line);
     L = 1 - Q_us / C_bat;
-    when isCharging == false then
-      cycleLen = time - pre(cycleStartTime);
-      SoC_avg = 1 / cycleLen * pre(socIntegrator.y);
-      SoC_dev = 2 * sqrt(3 / cycleLen) * sqrt(pre(socSquareIntegrator.y) - 2 * SoC_avg * pre(socIntegrator.y) + cycleLen * SoC_avg * SoC_avg);
-      n_m = pre(Ah_throughput.y) / (2 * C_bat);
-      stepCapacityFade = params.K_co * n_m * exp((SoC_dev - 1) / params.K_ex) * exp(params.K_soc * ((SoC_avg - 0.5) / 0.25)) * (1 - pre(L));
-      Q_us = pre(Q_us) - stepCapacityFade;
+    stepCapacityFade = params.K_co * n_m.y * exp((SoC_dev.y - 1) / params.K_ex) * exp(params.K_soc * ((SoC_avg.y - 0.5) / 0.25)) * (1 - L);
+    Q_us = C_bat - capacityFade - stepCapacityFade;
+    when isCharging.y == false then
+      //cycleLen = time - pre(cycleStartTime);
+      //SoC_avg = 1 / cycleLen * pre(socIntegrator.y);
+      //SoC_dev = 2 * sqrt(3 / cycleLen) * sqrt(pre(socSquareIntegrator.y) - 2 * SoC_avg * pre(socIntegrator.y) + cycleLen * SoC_avg * SoC_avg);
+      //n_m = pre(Ah_throughput.y) / (2 * C_bat);
+      //Q_us = pre(Q_us) - stepCapacityFade;
       capacityFade = pre(capacityFade) + stepCapacityFade;
-      cycleStartTime = time;
-      socIntegrator.reset = true;
-      socSquareIntegrator.reset = true;
-      Ah_throughput.reset = true;
-    elsewhen isCharging == true then
-      cycleLen = pre(cycleLen);
-      SoC_avg = pre(SoC_avg);
-      SoC_dev = pre(SoC_dev);
-      n_m = pre(n_m);
-      stepCapacityFade = pre(stepCapacityFade);
+      //cycleStartTime = time;
+    elsewhen isCharging.y == true then
+      //cycleLen = pre(cycleLen);
+      //SoC_avg = pre(SoC_avg);
+      //SoC_dev = pre(SoC_dev);
+      //n_m = pre(n_m);
+      //stepCapacityFade = pre(stepCapacityFade);
       capacityFade = pre(capacityFade);
-      Q_us = pre(Q_us);
-      cycleStartTime = pre(cycleStartTime);
-      socIntegrator.reset = false;
-      socSquareIntegrator.reset = false;
-      Ah_throughput.reset = false;
+      //Q_us = pre(Q_us);
+      //cycleStartTime = pre(cycleStartTime);
     end when;
-    connect(SoC, socIntegrator.u) annotation(
-      Line(points = {{-100, 0}, {-79, 0}, {-79, 20}, {-62, 20}}, color = {0, 0, 127}));
-    connect(SoC, socSquare.u1) annotation(
-      Line(points = {{-100, 0}, {-74, 0}, {-74, -14}, {-62, -14}}, color = {0, 0, 127}));
-    connect(SoC, socSquare.u2) annotation(
-      Line(points = {{-100, 0}, {-74, 0}, {-74, -26}, {-62, -26}}, color = {0, 0, 127}));
-    connect(socSquare.y, socSquareIntegrator.u) annotation(
-      Line(points = {{-38, -20}, {-22, -20}}, color = {0, 0, 127}));
     connect(I, I_abs.u) annotation(
-      Line(points = {{0, 100}, {0, 100}, {0, 50}, {10, 50}, {10, 50}}, color = {0, 0, 127}));
-    connect(I_abs.y, Ah_throughput.u) annotation(
-      Line(points = {{34, 50}, {56, 50}, {56, 50}, {56, 50}}, color = {0, 0, 127}));
+      Line(points = {{120, 0}, {54, 0}}, color = {0, 0, 127}));
+  connect(I_abs.y, Ah_throughput.u) annotation(
+      Line(points = {{31, 0}, {22, 0}}, color = {0, 0, 127}));
+  connect(SoC, SoC_avg.u) annotation(
+      Line(points = {{0, 118}, {0, 70}, {-18, 70}}, color = {0, 0, 127}));
+  connect(SoC, SoC_dev.u) annotation(
+      Line(points = {{0, 118}, {0, 70}, {18, 70}}, color = {0, 0, 127}));
+  connect(SoC_dev.y, SoC_dev_normed.u1) annotation(
+      Line(points = {{41, 70}, {51.5, 70}, {51.5, 64}, {58, 64}}, color = {0, 0, 127}));
+  connect(unit_of_soc_for_cycle.y, SoC_dev_normed.u2) annotation(
+      Line(points = {{41, 44}, {52.5, 44}, {52.5, 52}, {58, 52}}, color = {0, 0, 127}));
+  connect(Ah_throughput.y, n_m.u1) annotation(
+      Line(points = {{-1, 0}, {-10.5, 0}, {-10.5, -8}, {-18, -8}}, color = {0, 0, 127}));
+  connect(cycle_charge.y, n_m.u2) annotation(
+      Line(points = {{0, -30}, {-10, -30}, {-10, -20}, {-18, -20}}, color = {0, 0, 127}));
     annotation(
       uses(Modelica(version = "3.2.3")),
       experiment(StartTime = 0, StopTime = 1, Tolerance = 1e-06, Interval = 0.002));
@@ -258,7 +432,7 @@ model TestCycleTheveninBasedBattery "Basic Battery Model based on Thevenin elect
   constant TheveninBasedModelParameters chargingParams(R_s = SeriesResistor.Parameters(R_0 = 8.210e-2, k1 = -4.1006e-2, k2 = 1.609e-1, k3 = -2.518e-1, k4 = 1.369e-1), R_ts = ChargeDependentResistor.Parameters(R_0 = 1.4e-2, k1 = 7.13e-11, k2 = -21.11, k3 = 0), R_tl = ChargeDependentResistor.Parameters(R_0 = 3.1e-2, k1 = 8.913e-15, k2 = -32.23, k3 = 4.473e-3), C_ts = ChargeDependentCapacitor.Parameters(C_0 = 6.849e2, k1 = 2.340e3, k2 = -1.013e4, k3 = 1.723e4, k4 = -1.026e4, k5 = 0, k6 = 0), C_tl = ChargeDependentCapacitor.Parameters(C_0 = 7.144e3, k1 = 2.283e4, k2 = -8.124e4, k3 = -4.009e3, k4 = 2.042e5, k5 = -1.541e5, k6 = 0));
   parameter Real C_bat = 1.1;
   parameter Real I_dis = C_bat;
-  parameter String SocToOcvTableFileName = "/home/midren/bachelor/soc_to_u_bat_tookup.txt";
+  parameter String SocToOcvTableFileName = "/Users/roman.milishchuk/bachelor/soc_to_u_bat_tookup.txt";
   parameter CapacityFadingCalculator.Parameters capacityFadingParams(K_co = 3.66e-5, K_ex = 0.717, K_soc = 0.916);
   Real SoH(start = 1);
   TheveninBasedModelParameters currentParams;

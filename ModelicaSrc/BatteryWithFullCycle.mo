@@ -4,7 +4,7 @@ package BatteryMPC
       extends Modelica.Electrical.Analog.Interfaces.TwoPin;
 
       model VariableSource "Generate signal of type Real"
-        Real height "Height of step" annotation(
+        Real height(start=0) "Height of step" annotation(
           Dialog(groupImage = "modelica://Modelica/Resources/Images/Blocks/Sources/Step.png"));
         extends Modelica.Blocks.Interfaces.SignalSource;
       equation
@@ -51,30 +51,15 @@ package BatteryMPC
           Line(points = {{-12, -46}, {-60, -46}, {-60, 0}, {-100, 0}, {-100, 0}}, color = {0, 0, 255}));
         connect(signalVoltage.n, n) annotation(
           Line(points = {{8, -46}, {40, -46}, {40, 0}, {100, 0}, {100, 0}}, color = {0, 0, 255}));
-        annotation (
-          Icon(coordinateSystem(
-              preserveAspectRatio=true,
-              extent={{-100,-100},{100,100}}), graphics={
-              Ellipse(
-                extent={{-50,50},{50,-50}},
-                lineColor={0,0,255},
-                fillColor={255,255,255},
-                fillPattern=FillPattern.Solid),
-              Text(
-                extent={{-150,60},{150,100}},
-                textString="%name",
-                lineColor={0,0,255}),
-              Line(points={{-90,0},{90,0}}, color={0,0,255}),
-              Line(points={{-80,20},{-60,20}}, color={0,0,255}),
-              Line(points={{-70,30},{-70,10}}, color={0,0,255}),
-              Line(points={{60,20},{80,20}}, color={0,0,255})}),
-          Documentation(revisions="<html>
+        annotation(
+          Icon(coordinateSystem(preserveAspectRatio = true, extent = {{-100, -100}, {100, 100}}), graphics = {Ellipse(extent = {{-50, 50}, {50, -50}}, lineColor = {0, 0, 255}, fillColor = {255, 255, 255}, fillPattern = FillPattern.Solid), Text(extent = {{-150, 60}, {150, 100}}, textString = "%name", lineColor = {0, 0, 255}), Line(points = {{-90, 0}, {90, 0}}, color = {0, 0, 255}), Line(points = {{-80, 20}, {-60, 20}}, color = {0, 0, 255}), Line(points = {{-70, 30}, {-70, 10}}, color = {0, 0, 255}), Line(points = {{60, 20}, {80, 20}}, color = {0, 0, 255})}),
+          Documentation(revisions = "<html>
       <ul>
       <li><em> 1998   </em>
            by Christoph Clauss<br> initially implemented<br>
            </li>
       </ul>
-      </html>", info="<html>
+      </html>", info = "<html>
       <p>The VoltageSource partial model prepares voltage sources by providing the pins, and the offset and startTime parameters, which are the same at all voltage sources. The source behavior is taken from Modelica.Blocks signal sources by inheritance and usage of the replaceable possibilities.</p>
       </html>"));
       end voltageSourceSocDependant;
@@ -91,7 +76,7 @@ package BatteryMPC
         Modelica.Blocks.Interfaces.RealInput SoC;
         input Parameters params;
       equation
-        R = 3600*(params.R_0 + params.k1 * exp(-params.k2 * SoC) + params.k3 * SoC);
+        R = 3600 * (params.R_0 + params.k1 * exp(-params.k2 * SoC) + params.k3 * SoC);
       end ChargeDependentResistor;
 
       model ChargeDependentCapacitor
@@ -110,7 +95,7 @@ package BatteryMPC
         Modelica.Blocks.Interfaces.RealInput SoC;
         input Parameters params;
       equation
-        C = max(params.C_0 + params.k1 * SoC + params.k2 * SoC ^ 2 + params.k3 * SoC ^ 3 + params.k4 * SoC ^ 4 + params.k5 * SoC ^ 5 + params.k6 * SoC ^ 6, 0)/3600;
+        C = max(params.C_0 + params.k1 * SoC + params.k2 * SoC ^ 2 + params.k3 * SoC ^ 3 + params.k4 * SoC ^ 4 + params.k5 * SoC ^ 5 + params.k6 * SoC ^ 6, 0) / 3600;
       end ChargeDependentCapacitor;
 
       model CoulombSocCounter
@@ -131,19 +116,19 @@ package BatteryMPC
         Modelica.Blocks.Math.Division division annotation(
           Placement(visible = true, transformation(origin = {14, -20}, extent = {{10, -10}, {-10, 10}}, rotation = 0)));
       equation
-  connect(SOC_init.y, Sum.u[1]) annotation(
+        connect(SOC_init.y, Sum.u[1]) annotation(
           Line(points = {{5, 49}, {-4, 49}, {-4, 0}, {-14, 0}}, color = {0, 0, 127}));
-  connect(I_bat, integrator.u) annotation(
+        connect(I_bat, integrator.u) annotation(
           Line(points = {{120, 26}, {82, 26}, {82, 25}, {72, 25}}, color = {0, 0, 127}));
-  connect(Sum.y, socLimiter.u) annotation(
+        connect(Sum.y, socLimiter.u) annotation(
           Line(points = {{-37, 0}, {-48, 0}}, color = {0, 0, 127}));
-  connect(socLimiter.y, SoC) annotation(
+        connect(socLimiter.y, SoC) annotation(
           Line(points = {{-71, 0}, {-110, 0}}, color = {0, 0, 127}));
-  connect(Q_us, division.u2) annotation(
+        connect(Q_us, division.u2) annotation(
           Line(points = {{120, -26}, {26, -26}}, color = {0, 0, 127}));
-  connect(integrator.y, division.u1) annotation(
+        connect(integrator.y, division.u1) annotation(
           Line(points = {{47, 25}, {40, 25}, {40, -14}, {26, -14}}, color = {0, 0, 127}));
-  connect(division.y, Sum.u[2]) annotation(
+        connect(division.y, Sum.u[2]) annotation(
           Line(points = {{3, -20}, {-4.5, -20}, {-4.5, 0}, {-14, 0}}, color = {0, 0, 127}));
         annotation(
           uses(Modelica(version = "3.2.3")));
@@ -152,28 +137,175 @@ package BatteryMPC
       model CapacityFadingCalculator
         model IntegratorWithReset
           extends Modelica.Blocks.Continuous.Integrator;
-          Modelica.Blocks.Interfaces.BooleanInput reset annotation(
-            Placement(visible = true, transformation(origin = {-120, -60}, extent = {{-20, -20}, {20, 20}}, rotation = 0), iconTransformation(origin = {-120, -80}, extent = {{-20, -20}, {20, 20}}, rotation = -360)));
+          Modelica.Blocks.Interfaces.BooleanInput reset;
         equation
           when reset then
             reinit(y, y_start);
           end when;
         end IntegratorWithReset;
-
+        
+        block VarianceWithReset
+          extends Modelica.Blocks.Icons.Block;
+          parameter Modelica.SIunits.Time t_eps(min=100*Modelica.Constants.eps)=1e-7
+            "Variance calculation starts at startTime + t_eps"
+            annotation(Dialog(group="Advanced"));
+        
+          Modelica.Blocks.Interfaces.RealInput u "Noisy input signal" annotation (Placement(transformation(extent={{-140,-20},{-100,20}})));
+          Modelica.Blocks.Interfaces.RealOutput y "Variance of the input signal"
+            annotation (Placement(transformation(extent={{100,-10},{120,10}})));
+          Modelica.Blocks.Interfaces.BooleanInput reset annotation(
+            Placement(visible = true, transformation(origin = {-120, -60}, extent = {{-20, -20}, {20, 20}}, rotation = 0), iconTransformation(origin = {-120, -80}, extent = {{-20, -20}, {20, 20}}, rotation = -360)));
+        protected  
+          Real mu "Mean value (state variable)";
+          Real var "Variance (state variable)";
+          Real t_0(fixed=false, start=0) "Start time";
+        initial equation
+          t_0 = time;
+          mu  = u;
+          var = 0;
+        equation
+          when reset then
+            reinit(mu, u);
+            reinit(var, 0);
+            t_0 = time;
+          end when;
+          //t_0 = t_0 + 0;
+          der(mu)  = noEvent(if time >= t_0 + t_eps then (u-mu)/(time-t_0)             else 0);
+          der(var) = noEvent(if time >= t_0 + t_eps then ((u-mu)^2 - var)/(time - t_0) else 0);
+          y        = noEvent(if time >= t_0 + t_eps then max(var,0)                    else 0);
+        end VarianceWithReset;
+      
+        block MeanWithReset
+            "Calculates the empirical expectation (mean) value of its input signal"
+          extends Modelica.Blocks.Icons.Block;
+          parameter Modelica.SIunits.Time t_eps(min= 100*Modelica.Constants.eps)=1e-7
+            "Mean value calculation starts at startTime + t_eps"
+            annotation(Dialog(group="Advanced"));
+        
+          Modelica.Blocks.Interfaces.RealInput u "Noisy input signal" annotation (Placement(transformation(extent={{-140,-20},{-100,20}})));
+          Modelica.Blocks.Interfaces.RealOutput y
+            "Expectation (mean) value of the input signal"
+            annotation (Placement(transformation(extent={{100,-10},{120,10}})));
+          Modelica.Blocks.Interfaces.BooleanInput reset annotation(
+            Placement(visible = true, transformation(origin = {-120, -60}, extent = {{-20, -20}, {20, 20}}, rotation = 0), iconTransformation(origin = {-120, -80}, extent = {{-20, -20}, {20, 20}}, rotation = -360)));
+        protected
+          Real mu "Internal integrator variable";
+          Real t_0(fixed=false, start=0) "Start time";
+        initial equation
+          t_0 = time;
+          mu  = u;
+        equation
+          when reset then
+            reinit(mu, u);
+            t_0 = time;
+          end when;
+          //t_0 = t_0 + 0;
+          der(mu) = noEvent(if time >= t_0 + t_eps then (u-mu)/(time-t_0) else 0);
+          y       = noEvent(if time >= t_0 + t_eps then mu                else u);
+        end MeanWithReset;
+      
+        block StandardDeviationWithReset
+          "Calculates the empirical standard deviation of its input signal"
+          extends Modelica.Blocks.Icons.Block;
+          parameter Modelica.SIunits.Time t_eps(min=100*Modelica.Constants.eps)=1e-7
+            "Standard deviation calculation starts at startTime + t_eps"
+            annotation(Dialog(group="Advanced"));
+        
+          Modelica.Blocks.Interfaces.RealInput u "Noisy input signal" annotation (Placement(transformation(extent={{-140,-20},{-100,20}})));
+          Modelica.Blocks.Interfaces.RealOutput y
+            "Standard deviation of the input signal"
+            annotation (Placement(transformation(extent={{100,-10},{120,10}})));
+          Modelica.Blocks.Interfaces.BooleanInput reset annotation(
+            Placement(visible = true, transformation(origin = {-120, -60}, extent = {{-20, -20}, {20, 20}}, rotation = 0), iconTransformation(origin = {-120, -80}, extent = {{-20, -20}, {20, 20}}, rotation = -360)));
+        
+          VarianceWithReset variance(t_eps=t_eps)
+            annotation (Placement(transformation(extent={{-60,-10},{-40,10}})));
+          Modelica.Blocks.Math.Sqrt sqrt1
+            annotation (Placement(transformation(extent={{-20,-10},{0,10}})));
+        equation
+          connect(variance.reset, reset);
+          connect(variance.u, u) annotation (Line(
+              points={{-62,0},{-120,0}}, color={0,0,127}));
+          connect(sqrt1.u, variance.y) annotation (Line(
+              points={{-22,0},{-39,0}}, color={0,0,127}));
+          connect(sqrt1.y, y) annotation (Line(
+              points={{1,0},{110,0}}, color={0,0,127}));
+          annotation (Documentation(revisions="<html>
+        <table border=1 cellspacing=0 cellpadding=2>
+        <tr><th>Date</th> <th align=\"left\">Description</th></tr>
+        
+        <tr><td> June 22, 2015 </td>
+          <td>
+        
+        <table border=0>
+        <tr><td>
+               <img src=\"modelica://Modelica/Resources/Images/Blocks/Noise/dlr_logo.png\">
+        </td><td valign=\"bottom\">
+               Initial version implemented by
+               A. Kl&ouml;ckner, F. v.d. Linden, D. Zimmer, M. Otter.<br>
+               <a href=\"http://www.dlr.de/rmc/sr/en\">DLR Institute of System Dynamics and Control</a>
+        </td></tr></table>
+        </td></tr>
+        
+        </table>
+        </html>",                                   info="<html>
+        <p>This block calculates the standard deviation of its input signal. The standard deviation is the square root of the signal&#39;s variance:</p>
+        <blockquote>
+        <pre>y = sqrt( variance(u) )</pre>
+        </blockquote>
+        <p>
+        The <a href=\"modelica://Modelica.Blocks.Math.Variance\">Variance</a> block is used to
+        calculate variance(u).
+        </p>
+        <p>The parameter t_eps is used to guard against division by zero (the computation of the standard deviation
+        starts at &lt;<em>simulation start time</em>&gt; + t_eps and before that time instant y = 0).
+        </p>
+        
+        <p>
+        This block is demonstrated in the examples
+        <a href=\"modelica://Modelica.Blocks.Examples.NoiseExamples.UniformNoiseProperties\">UniformNoiseProperties</a> and
+        <a href=\"modelica://Modelica.Blocks.Examples.NoiseExamples.NormalNoiseProperties\">NormalNoiseProperties</a>.
+        </p>
+        </html>"),
+            Icon(graphics={
+                Line(points={{-76,68},{-76,-80}}, color={192,192,192}),
+                Line(points={{-86,0},{72,0}}, color={192,192,192}),
+                Line(
+                   points={{-76,-13},{-62,-13},{-62,3},{-54,3},{-54,-45},{-46,-45},{-46,
+                      -23},{-38,-23},{-38,61},{-30,61},{-30,29},{-30,29},{-30,-31},{-20,
+                      -31},{-20,-13},{-10,-13},{-10,-41},{0,-41},{0,41},{6,41},{6,55},
+                      {12,55},{12,-1},{22,-1},{22,11},{28,11},{28,-19},{38,-19},{38,53},
+                      {48,53},{48,19},{56,19},{56,-47},{66,-47}},
+                    color={215,215,215}),
+                Polygon(
+                  points={{94,0},{72,8},{72,-8},{94,0}},
+                  lineColor={192,192,192},
+                  fillColor={192,192,192},
+                  fillPattern=FillPattern.Solid),
+                Line(
+                  points={{-76,46},{70,46}},
+                  color={215,215,215}),
+                Line(
+                  points={{-16,0},{-16,30}}),
+                Polygon(
+                  points={{-76,90},{-84,68},{-68,68},{-76,90}},
+                  lineColor={192,192,192},
+                  fillColor={192,192,192},
+                  fillPattern=FillPattern.Solid),
+                Polygon(
+                  points={{-16,46},{-24,24},{-8,24},{-16,46}},
+                  fillPattern=FillPattern.Solid)}));
+        end StandardDeviationWithReset;
+      
         record Parameters
           Real K_co = 3.66e-5;
           Real K_ex = 0.717;
           Real K_soc = 0.916;
         end Parameters;
-
+      
         parameter Real C_bat "Nominal capacity in Ah";
         parameter Parameters params;
-        Modelica.Blocks.Logical.LessThreshold isCharging(threshold = 0);
-        Real cycleStartTime(start = 0);
-        Real cycleLen;
-        Real SoC_avg(start = 0);
-        Real SoC_dev(start = 0);
-        Real n_m(start = 0) "Effective number of throughput cycles";
+        Modelica.Blocks.Logical.GreaterThreshold isNotCharging(threshold = 0);
         Real L(start = 0) "Life ageing parameter";
         Real stepCapacityFade(start = 0);
         Real capacityFade(start = 0);
@@ -181,59 +313,54 @@ package BatteryMPC
           Placement(visible = true, transformation(origin = {0, 118}, extent = {{-20, -20}, {20, 20}}, rotation = -90), iconTransformation(origin = {-100, 0}, extent = {{-20, -20}, {20, 20}}, rotation = 0)));
         Modelica.Blocks.Interfaces.RealInput I annotation(
           Placement(visible = true, transformation(origin = {120, 0}, extent = {{-20, 20}, {20, -20}}, rotation = 180), iconTransformation(origin = {0, 100}, extent = {{-20, -20}, {20, 20}}, rotation = -90)));
-        BatteryMPC.BatteryWithFullCycle.TheveninBasedBattery.CapacityFadingCalculator.IntegratorWithReset socIntegrator(y_start = 0) annotation(
-          Placement(visible = true, transformation(origin = {40, 54}, extent = {{-10, -10}, {10, 10}}, rotation = 0)));
-        Modelica.Blocks.Math.Product socSquare annotation(
-          Placement(visible = true, transformation(origin = {-34, 54}, extent = {{-10, -10}, {10, 10}}, rotation = 180)));
-        BatteryMPC.BatteryWithFullCycle.TheveninBasedBattery.CapacityFadingCalculator.IntegratorWithReset socSquareIntegrator(y_start = 0) annotation(
-          Placement(visible = true, transformation(origin = {-78, 54}, extent = {{10, -10}, {-10, 10}}, rotation = 0)));
         BatteryMPC.BatteryWithFullCycle.TheveninBasedBattery.CapacityFadingCalculator.IntegratorWithReset Ah_throughput(y_start = 0) annotation(
-          Placement(visible = true, transformation(origin = {6, 0}, extent = {{10, -10}, {-10, 10}}, rotation = 0)));
+          Placement(visible = true, transformation(origin = {10, 0}, extent = {{10, -10}, {-10, 10}}, rotation = 0)));
         Modelica.Blocks.Math.Abs I_abs annotation(
           Placement(visible = true, transformation(origin = {42, 0}, extent = {{10, -10}, {-10, 10}}, rotation = 0)));
         Modelica.Blocks.Interfaces.RealOutput Q_us(start = C_bat) annotation(
           Placement(visible = true, transformation(origin = {-110, 0}, extent = {{-10, 10}, {10, -10}}, rotation = 180), iconTransformation(origin = {0, -110}, extent = {{-10, 10}, {10, -10}}, rotation = -90)));
+      MeanWithReset SoC_avg annotation(
+          Placement(visible = true, transformation(origin = {-30, 70}, extent = {{10, -10}, {-10, 10}}, rotation = 0)));
+      StandardDeviationWithReset SoC_dev annotation(
+          Placement(visible = true, transformation(origin = {30, 70}, extent = {{-10, -10}, {10, 10}}, rotation = 0)));
+      Modelica.Blocks.Math.Product SoC_dev_normed annotation(
+          Placement(visible = true, transformation(origin = {70, 58}, extent = {{-10, -10}, {10, 10}}, rotation = 0)));
+      Modelica.Blocks.Sources.Constant unit_of_soc_for_cycle(k = 3.4641016151)  annotation(
+          Placement(visible = true, transformation(origin = {30, 44}, extent = {{-10, -10}, {10, 10}}, rotation = 0)));
+      Modelica.Blocks.Math.Division n_m annotation(
+          Placement(visible = true, transformation(origin = {-30, -14}, extent = {{10, -10}, {-10, 10}}, rotation = 0)));
+      Modelica.Blocks.Sources.Constant cycle_charge(k = 2 * C_bat)  annotation(
+          Placement(visible = true, transformation(origin = {10, -30}, extent = {{10, -10}, {-10, 10}}, rotation = 0)));
+      
       equation
-  connect(isCharging.u, I) annotation(
+        connect(isNotCharging.u, I) annotation(
           Line);
-  connect(socIntegrator.reset, isCharging.y) annotation(
+        connect(isNotCharging.y, SoC_avg.reset);
+        connect(isNotCharging.y, SoC_dev.reset);
+        connect(isNotCharging.y, Ah_throughput.reset) annotation(
           Line);
-  connect(socSquareIntegrator.reset, isCharging.y) annotation(
-          Line);
-  connect(Ah_throughput.reset, isCharging.y) annotation(
-          Line);
+        Q_us = C_bat - capacityFade - stepCapacityFade;
         L = 1 - Q_us / C_bat;
-        when isCharging.y == false then
-          cycleLen = time - pre(cycleStartTime);
-          SoC_avg = 1 / cycleLen * pre(socIntegrator.y);
-          SoC_dev = 2 * sqrt(3 / cycleLen) * sqrt(pre(socSquareIntegrator.y) - 2 * SoC_avg * pre(socIntegrator.y) + cycleLen * SoC_avg * SoC_avg);
-          n_m = pre(Ah_throughput.y) / (2 * C_bat);
-          stepCapacityFade = params.K_co * n_m * exp((SoC_dev - 1) / params.K_ex) * exp(params.K_soc * ((SoC_avg - 0.5) / 0.25)) * (1 - pre(L));
-          Q_us = pre(Q_us) - stepCapacityFade;
-          capacityFade = pre(capacityFade) + stepCapacityFade;
-          cycleStartTime = time;
-        elsewhen isCharging.y == true then
-          cycleLen = pre(cycleLen);
-          SoC_avg = pre(SoC_avg);
-          SoC_dev = pre(SoC_dev);
-          n_m = pre(n_m);
-          stepCapacityFade = pre(stepCapacityFade);
-          capacityFade = pre(capacityFade);
-          Q_us = pre(Q_us);
-          cycleStartTime = pre(cycleStartTime);
+        stepCapacityFade = params.K_co * n_m.y * exp((SoC_dev.y - 1) / params.K_ex) * exp(params.K_soc * ((SoC_avg.y - 0.5) / 0.25)) * (1 - L);
+        when isNotCharging.y then
+          capacityFade = pre(capacityFade) + pre(stepCapacityFade);
         end when;
-  connect(SoC, socIntegrator.u) annotation(
-          Line(points = {{0, 118}, {0, 54}, {28, 54}}, color = {0, 0, 127}));
-  connect(SoC, socSquare.u1) annotation(
-          Line(points = {{0, 118}, {-1, 118}, {-1, 100}, {0, 100}, {0, 49}, {-22, 49}, {-22, 48}}, color = {0, 0, 127}));
-  connect(SoC, socSquare.u2) annotation(
-          Line(points = {{0, 118}, {0, 60}, {-22, 60}}, color = {0, 0, 127}));
-  connect(socSquare.y, socSquareIntegrator.u) annotation(
-          Line(points = {{-45, 54}, {-66, 54}}, color = {0, 0, 127}));
-  connect(I, I_abs.u) annotation(
+        connect(I, I_abs.u) annotation(
           Line(points = {{120, 0}, {54, 0}}, color = {0, 0, 127}));
-  connect(I_abs.y, Ah_throughput.u) annotation(
-          Line(points = {{31, 0}, {18, 0}}, color = {0, 0, 127}));
+      connect(I_abs.y, Ah_throughput.u) annotation(
+          Line(points = {{31, 0}, {22, 0}}, color = {0, 0, 127}));
+      connect(SoC, SoC_avg.u) annotation(
+          Line(points = {{0, 118}, {0, 70}, {-18, 70}}, color = {0, 0, 127}));
+      connect(SoC, SoC_dev.u) annotation(
+          Line(points = {{0, 118}, {0, 70}, {18, 70}}, color = {0, 0, 127}));
+      connect(SoC_dev.y, SoC_dev_normed.u1) annotation(
+          Line(points = {{41, 70}, {51.5, 70}, {51.5, 64}, {58, 64}}, color = {0, 0, 127}));
+      connect(unit_of_soc_for_cycle.y, SoC_dev_normed.u2) annotation(
+          Line(points = {{41, 44}, {52.5, 44}, {52.5, 52}, {58, 52}}, color = {0, 0, 127}));
+      connect(Ah_throughput.y, n_m.u1) annotation(
+          Line(points = {{-1, 0}, {-10.5, 0}, {-10.5, -8}, {-18, -8}}, color = {0, 0, 127}));
+      connect(cycle_charge.y, n_m.u2) annotation(
+          Line(points = {{0, -30}, {-10, -30}, {-10, -20}, {-18, -20}}, color = {0, 0, 127}));
         annotation(
           uses(Modelica(version = "3.2.3")),
           experiment(StartTime = 0, StopTime = 1, Tolerance = 1e-06, Interval = 0.002));
@@ -252,7 +379,7 @@ package BatteryMPC
         Modelica.Blocks.Interfaces.RealInput SoC;
         input Parameters params;
       equation
-        R = (params.R_0 + params.k1 * SoC + params.k2 * SoC ^ 2 + params.k3 * SoC ^ 3 + params.k4 * SoC ^ 4)*3600;
+        R = (params.R_0 + params.k1 * SoC + params.k2 * SoC ^ 2 + params.k3 * SoC ^ 3 + params.k4 * SoC ^ 4) * 3600;
       end SeriesResistor;
 
       model ShortTimeTransientResistor
@@ -319,7 +446,7 @@ package BatteryMPC
       BatteryMPC.BatteryWithFullCycle.TheveninBasedBattery.CapacityFadingCalculator capacityFadingCalc(C_bat = C_bat, params = capacityFadingParams) annotation(
         Placement(visible = true, transformation(origin = {-10, -86}, extent = {{-10, -10}, {10, 10}}, rotation = -90)));
     equation
-      SoH = 1 - capacityFadingCalc.capacityFade / (0.2 * C_bat);
+      SoH = 1 - (capacityFadingCalc.capacityFade + capacityFadingCalc.stepCapacityFade) / (0.2 * C_bat);
       R_s.params = currentParams.R_s;
       R_ts.params = currentParams.R_ts;
       C_ts.params = currentParams.C_ts;
@@ -330,7 +457,7 @@ package BatteryMPC
       else
         currentParams = dischargingParams;
       end if;
-  // main circuit
+// main circuit
       connect(R_s.p, R_ts.n) annotation(
         Line(points = {{-20, 40}, {-38, 40}, {-38, 40}, {-38, 40}}, color = {0, 0, 255}));
       connect(R_ts.n, C_ts.n) annotation(
@@ -349,31 +476,31 @@ package BatteryMPC
 // Find voltage difference and modify signalVoltage
       connect(I_bat.i, coulombSocCounter.I_bat) annotation(
         Line(points = {{60, 30}, {60, -64}, {44, -64}}, color = {0, 0, 127}));
-  connect(coulombSocCounter.SoC, C_ts.SoC) annotation(
+      connect(coulombSocCounter.SoC, C_ts.SoC) annotation(
         Line(points = {{23, -58}, {-10, -58}, {-10, 0}}, color = {0, 0, 127}));
-  connect(coulombSocCounter.SoC, C_tl.SoC) annotation(
+      connect(coulombSocCounter.SoC, C_tl.SoC) annotation(
         Line(points = {{23, -58}, {-10, -58}, {-10, -8}, {30, -8}, {30, 0}}, color = {0, 0, 127}));
-  connect(coulombSocCounter.SoC, R_tl.SoC) annotation(
+      connect(coulombSocCounter.SoC, R_tl.SoC) annotation(
         Line(points = {{23, -58}, {6, -58}, {6, 60}, {30, 60}, {30, 52}}, color = {0, 0, 127}));
-  connect(coulombSocCounter.SoC, R_ts.SoC) annotation(
+      connect(coulombSocCounter.SoC, R_ts.SoC) annotation(
         Line(points = {{23, -58}, {6, -58}, {6, 60}, {-10, 60}, {-10, 52}}, color = {0, 0, 127}));
-  connect(coulombSocCounter.SoC, R_s.SoC) annotation(
+      connect(coulombSocCounter.SoC, R_s.SoC) annotation(
         Line(points = {{23, -58}, {6, -58}, {6, 60}, {-48, 60}, {-48, 52}}, color = {0, 0, 127}));
-  connect(voltageSource.p, R_s.n) annotation(
+      connect(voltageSource.p, R_s.n) annotation(
         Line(points = {{-66, 0}, {-66, 40}, {-58, 40}}, color = {0, 0, 255}));
-  connect(coulombSocCounter.SoC, voltageSource.SoC) annotation(
+      connect(coulombSocCounter.SoC, voltageSource.SoC) annotation(
         Line(points = {{23, -58}, {-75.75, -58}, {-75.75, -12}, {-76, -12}}, color = {0, 0, 127}));
-  connect(coulombSocCounter.SoC, capacityFadingCalc.SoC) annotation(
+      connect(coulombSocCounter.SoC, capacityFadingCalc.SoC) annotation(
         Line(points = {{23, -58}, {-10, -58}, {-10, -76}}, color = {0, 0, 127}));
-  connect(capacityFadingCalc.I, I_bat.i) annotation(
+      connect(capacityFadingCalc.I, I_bat.i) annotation(
         Line(points = {{0, -86}, {60, -86}, {60, 30}}, color = {0, 0, 127}));
-  connect(capacityFadingCalc.Q_us, coulombSocCounter.Q_us) annotation(
+      connect(capacityFadingCalc.Q_us, coulombSocCounter.Q_us) annotation(
         Line(points = {{-21, -86}, {-36, -86}, {-36, -36}, {53, -36}, {53, -54}, {44, -54}}, color = {0, 0, 127}));
-  connect(p, voltageSource.n) annotation(
+      connect(p, voltageSource.n) annotation(
         Line(points = {{-100, 0}, {-86, 0}, {-86, 0}}, color = {0, 0, 255}));
       connect(I_bat.n, n) annotation(
         Line(points = {{70, 40}, {80, 40}, {80, 0}, {100, 0}}, color = {0, 0, 255}));
-  connect(C_tl.p, R_tl.p) annotation(
+      connect(C_tl.p, R_tl.p) annotation(
         Line(points = {{40, 12}, {40, 40}}, color = {0, 0, 255}));
     protected
       annotation(
@@ -384,8 +511,8 @@ package BatteryMPC
     end TheveninBasedBattery;
 
     parameter Real C_bat = 1.1;
-    parameter Real I_dis = C_bat/3600;
-    BatteryWithFullCycle.TheveninBasedBattery theveninBasedBattery(C_bat=C_bat) annotation(
+    parameter Real I_dis = C_bat / 3600;
+    BatteryWithFullCycle.TheveninBasedBattery theveninBasedBattery(C_bat = C_bat) annotation(
       Placement(visible = true, transformation(origin = {-4, 20}, extent = {{-10, -10}, {10, 10}}, rotation = 0)));
     Modelica.Electrical.Analog.Basic.Ground ground annotation(
       Placement(visible = true, transformation(origin = {-50, -26}, extent = {{-10, -10}, {10, 10}}, rotation = 0)));
@@ -406,5 +533,6 @@ package BatteryMPC
       uses(Modelica(version = "3.2.3")),
       experiment(StartTime = 0, StopTime = 10000, Tolerance = 1e-6, Interval = 100));
   end BatteryWithFullCycle;
-
+  annotation(
+    uses(Modelica(version = "3.2.3")));
 end BatteryMPC;
