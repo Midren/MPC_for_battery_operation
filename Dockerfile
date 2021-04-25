@@ -38,14 +38,6 @@ RUN conda update conda -y \
 RUN conda install matplotlib>=2.0.2 numpy>=1.16.6 pandas>=0.20.3 python-dateutil>=2.6.1 scikit-learn>=0.18.2 sphinx>=1.6.3 numpydoc>=0.7.0 pyDOE>=0.3.8 netCDF4==1.4.2 cftime==1.0.4.2 siphon==0.8.0 -y
 RUN conda install jupyter jupyter_contrib_nbextensions jupyterthemes -y
 
-RUN mkdir /home/developer/ipynotebooks && mkdir /home/developer/modelica
-#RUN mkdir /home/developer/mpcpy_libs/
-#WORKDIR /home/developer/mpcpy_libs
-#RUN git clone https://github.com/lbl-srg/EstimationPy
-# connect via docker sharing
-#RUN git clone https://github.com/Midren/MPCPy
-
-
 RUN mkdir -p /home/developer/.jupyter && jupyter notebook --generate-config
 # Add password, so no need to look for token
 RUN python3 -c 'import json; from notebook.auth import passwd; open("/home/developer/.jupyter/jupyter_notebook_config.json", "w").write(json.dumps({"NotebookApp":{"password": passwd("password")}}));'
@@ -61,7 +53,10 @@ RUN jt -tf source -nf ptsans -nfs 10 -ofs 10 -fs 10 -tfs 10 #-t gruvboxd --vim
 
 RUN conda install altair vega autopep8
 RUN conda init bash 
-#&& conda activate
+
+RUN mkdir /home/developer/ipynotebooks && \
+    mkdir /home/developer/modelica && \
+    mkdir /home/developer/python_libs/mpc_optimization -p
 
 ENV USER developer
 ENV DISPLAY :0.0
