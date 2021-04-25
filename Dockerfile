@@ -6,10 +6,8 @@ ENV JMODELICA_HOME /usr/local/JModelica
 ENV IPOPT_HOME /usr/local/Ipopt-3.12.4 
 #ENV CPPAD_HOME /home/docker/installed/JModelica/ThirdParty/CppAD/
 ENV SUNDIALS_HOME /usr/local/JModelica/ThirdParty/Sundials
-ENV PYTHONPATH /usr/local/JModelica/Python/:/usr/local/JModelica/Python/pymodelica/:
-ENV LD_LIBRARY_PATH /usr/local/Ipopt-3.12.4/lib/:\
-/usr/local/JModelica/ThirdParty/Sundials/lib:\
-/usr/local/JModelica/ThirdParty/CasADi/lib
+#ENV PYTHONPATH /usr/local/JModelica/Python/:/usr/local/JModelica/Python/pymodelica/:
+ENV LD_LIBRARY_PATH /usr/local/Ipopt-3.12.4/lib/:/usr/local/JModelica/ThirdParty/Sundials/lib:/usr/local/JModelica/ThirdParty/CasADi/lib:/usr/local/JModelica/Python/pyfmi
 ENV SEPARATE_PROCESS_JVM /usr/lib/jvm/java-8-openjdk-amd64/
 ENV MODELICAPATH /usr/local/JModelica/ThirdParty/MSL:/home/developer/modelica
 ENV JAVA_HOME /usr/lib/jvm/java-8-openjdk-amd64
@@ -56,11 +54,14 @@ RUN mkdir -p /home/developer/.local/share/jupyter/nbextensions
 WORKDIR /home/developer/.local/share/jupyter/nbextensions
 RUN git clone https://github.com/lambdalisue/jupyter-vim-binding vim_binding
 RUN jupyter nbextension enable vim_binding/vim_binding
-RUN jupyter nbextension enable code_prettify/autopep8
 RUN jupyter contrib nbextension install --user
-RUN jt -tf source -nf ptsans -nfs 10 -ofs 10 -fs 10 -tfs 10 -t gruvboxd --vim
+RUN jupyter nbextension enable code_prettify/autopep8
+RUN jupyter nbextension enable collapsible_headings/main
+RUN jt -tf source -nf ptsans -nfs 10 -ofs 10 -fs 10 -tfs 10 #-t gruvboxd --vim
 
 RUN conda install altair vega autopep8
+RUN conda init bash 
+#&& conda activate
 
 ENV USER developer
 ENV DISPLAY :0.0
