@@ -51,7 +51,7 @@ RUN jupyter nbextension enable code_prettify/autopep8
 RUN jupyter nbextension enable collapsible_headings/main
 RUN jt -tf source -nf ptsans -nfs 10 -ofs 10 -fs 10 -tfs 10 #-t gruvboxd --vim
 
-RUN conda install altair vega autopep8
+RUN conda install altair vega autopep8 seaborn
 RUN conda init bash 
 
 RUN mkdir /home/developer/ipynotebooks && \
