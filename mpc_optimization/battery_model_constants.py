@@ -1,8 +1,9 @@
 import typing as t
 
-BatteryStateVars: t.Final[str] = [
-    'time', 'theveninBasedBattery.voltageSource.U_ocv.v', 'theveninBasedBattery.R_ts.v',
-    'theveninBasedBattery.R_tl.v', 'theveninBasedBattery.coulombSocCounter.integrator.y',
+Battery_state_vars: t.Final[str] = [
+    'time', 'theveninBasedBattery.U_oc.v', 'theveninBasedBattery.R_s.v',
+    'theveninBasedBattery.R_ts.v', 'theveninBasedBattery.R_tl.v',
+    'theveninBasedBattery.coulombSocCounter.integrator.y',
     'theveninBasedBattery.capacityFadingCalc.SoC_avg.mu',
     'theveninBasedBattery.capacityFadingCalc.SoC_avg.t_0',
     'theveninBasedBattery.capacityFadingCalc.SoC_dev.variance.mu',
@@ -10,20 +11,21 @@ BatteryStateVars: t.Final[str] = [
     'theveninBasedBattery.capacityFadingCalc.SoC_dev.variance.t_0',
     'theveninBasedBattery.capacityFadingCalc.Ah_throughput.y',
     'theveninBasedBattery.capacityFadingCalc.capacityFade',
-    'theveninBasedBattery.capacityFadingCalc.stepCapacityFade',
+    'theveninBasedBattery.capacityFadingCalc.stepCapacityFade', 'theveninBasedBattery.SoH_last',
     'theveninBasedBattery.capacityFadingCalc.isNotCharging.y', 'theveninBasedBattery.v'
 ]
 
-StateVarsAliasesDict: t.Final[t.Dict[str, str]] = {
+State_vars_aliases_dict: t.Final[t.Dict[str, str]] = {
     'time': 'time',
-    'U_ocv': 'theveninBasedBattery.voltageSource.U_ocv.v',
+    'U_ocv': 'theveninBasedBattery.U_oc.v',
+    'R_s': 'theveninBasedBattery.R_s.v',
     'R_ts': 'theveninBasedBattery.R_ts.v',
     'R_tl': 'theveninBasedBattery.R_tl.v',
     'I_int': 'theveninBasedBattery.coulombSocCounter.integrator.y',
     'SoC_avg': 'theveninBasedBattery.capacityFadingCalc.SoC_avg.y',
     'SoC_avg_mu': 'theveninBasedBattery.capacityFadingCalc.SoC_avg.mu',
     'SoC_avg_t0': 'theveninBasedBattery.capacityFadingCalc.SoC_avg.t_0',
-    'SoC_dev': 'theveninBasedBattery.capacityFadingCalc.SoC_dev.y',
+    'SoC_dev': 'theveninBasedBattery.capacityFadingCalc.SoC_dev_normed.y',
     'SoC_dev_mu': 'theveninBasedBattery.capacityFadingCalc.SoC_dev.variance.mu',
     'SoC_dev_var': 'theveninBasedBattery.capacityFadingCalc.SoC_dev.variance.var',
     'SoC_dev_t0': 'theveninBasedBattery.capacityFadingCalc.SoC_dev.variance.t_0',
@@ -33,6 +35,8 @@ StateVarsAliasesDict: t.Final[t.Dict[str, str]] = {
     't_last': 'theveninBasedBattery.capacityFadingCalc.cycleStartTime',
     'I_req': 'I_req',
     'SoC': 'theveninBasedBattery.coulombSocCounter.SoC',
+    'delta_SoH': 'theveninBasedBattery.SoH_diff',
+    'SoH_delay': 'theveninBasedBattery.SoH_last',
     'SoH': 'theveninBasedBattery.SoH',
     'U': 'theveninBasedBattery.v',
     'is_not_charging': 'theveninBasedBattery.capacityFadingCalc.isNotCharging.y',

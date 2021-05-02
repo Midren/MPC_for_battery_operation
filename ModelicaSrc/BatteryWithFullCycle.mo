@@ -98,7 +98,7 @@ package BatteryMPC
         C = max(params.C_0 + params.k1 * SoC + params.k2 * SoC ^ 2 + params.k3 * SoC ^ 3 + params.k4 * SoC ^ 4 + params.k5 * SoC ^ 5 + params.k6 * SoC ^ 6, 0) / 3600;
       end ChargeDependentCapacitor;
 
-      model CoulombSocCounter
+      block CoulombSocCounter
         Modelica.Blocks.Interfaces.RealInput I_bat "Connector of Real input signals" annotation(
           Placement(visible = true, transformation(origin = {120, 26}, extent = {{-20, 20}, {20, -20}}, rotation = 180), iconTransformation(origin = {60, 100}, extent = {{-20, -20}, {20, 20}}, rotation = 270)));
         Modelica.Blocks.Sources.Constant SOC_init(k = 1) annotation(
@@ -131,10 +131,26 @@ package BatteryMPC
         connect(division.y, Sum.u[2]) annotation(
           Line(points = {{3, -20}, {-4.5, -20}, {-4.5, 0}, {-14, 0}}, color = {0, 0, 127}));
         annotation(
-          uses(Modelica(version = "3.2.3")));
+          uses(Modelica(version = "3.2.3")),
+          Icon(coordinateSystem(preserveAspectRatio=true, extent={{-100,-100},{
+                100,100}}), graphics={Rectangle(
+              extent={{-100,-100},{100,100}},
+              lineColor={0,0,127},
+              fillColor={255,255,255},
+              fillPattern=FillPattern.Solid), Text(
+              extent={{-150,150},{150,110}},
+              lineColor={0,0,255})}),
+        Documentation(info="<html>
+      <p>
+      Block that has only the basic icon for an input/output
+      block (no declarations, no equations). Most blocks
+      of package Modelica.Blocks inherit directly or indirectly
+      from this block.
+      </p>
+      </html>"));
       end CoulombSocCounter;
 
-      model CapacityFadingCalculator
+      block CapacityFadingCalculator
         model IntegratorWithReset
           extends Modelica.Blocks.Continuous.Integrator;
           Modelica.Blocks.Interfaces.BooleanInput reset;
@@ -341,7 +357,7 @@ package BatteryMPC
           Line);
         Q_us = C_bat - capacityFade - stepCapacityFade;
         L = 1 - Q_us / C_bat;
-        stepCapacityFade = params.K_co * n_m.y * exp((SoC_dev.y - 1) / params.K_ex) * exp(params.K_soc * ((SoC_avg.y - 0.5) / 0.25)) * (1 - L);
+        stepCapacityFade = params.K_co * n_m.y * exp((SoC_dev_normed.y - 1) / params.K_ex) * exp(params.K_soc * ((SoC_avg.y - 0.5) / 0.25)) * (1 - L);
         when isNotCharging.y then
           capacityFade = pre(capacityFade) + pre(stepCapacityFade);
         end when;
@@ -362,8 +378,26 @@ package BatteryMPC
       connect(cycle_charge.y, n_m.u2) annotation(
           Line(points = {{0, -30}, {-10, -30}, {-10, -20}, {-18, -20}}, color = {0, 0, 127}));
         annotation(
+        
           uses(Modelica(version = "3.2.3")),
-          experiment(StartTime = 0, StopTime = 1, Tolerance = 1e-06, Interval = 0.002));
+          experiment(StartTime = 0, StopTime = 1, Tolerance = 1e-06, Interval = 0.002),
+          Icon(coordinateSystem(preserveAspectRatio=true, extent={{-100,-100},{
+                100,100}}), graphics={Rectangle(
+              extent={{-100,-100},{100,100}},
+              lineColor={0,0,127},
+              fillColor={255,255,255},
+              fillPattern=FillPattern.Solid), Text(
+              extent={{-150,150},{150,110}},
+              lineColor={0,0,255})}),
+        Documentation(info="<html>
+      <p>
+      Block that has only the basic icon for an input/output
+      block (no declarations, no equations). Most blocks
+      of package Modelica.Blocks inherit directly or indirectly
+      from this block.
+      </p>
+      </html>"));
+      
       end CapacityFadingCalculator;
 
       model SeriesResistor
@@ -426,6 +460,8 @@ package BatteryMPC
       parameter String SocToOcvTableFileName = "/home/developer/modelica/soc_to_u_bat_tookup.txt";
       parameter CapacityFadingCalculator.Parameters capacityFadingParams(K_co = 3.66e-5, K_ex = 0.717, K_soc = 0.916);
       Real SoH(start = 1);
+      Real SoH_last(start = 1);
+      Real SoH_diff(start = 0);
       TheveninBasedModelParameters currentParams;
       SeriesResistor R_s annotation(
         Placement(visible = true, transformation(origin = {-48, 40}, extent = {{10, -10}, {-10, 10}}, rotation = 0)));
@@ -440,13 +476,15 @@ package BatteryMPC
       Modelica.Electrical.Analog.Sensors.CurrentSensor I_bat annotation(
         Placement(visible = true, transformation(origin = {60, 40}, extent = {{10, 10}, {-10, -10}}, rotation = 180)));
       BatteryMPC.BatteryWithFullCycle.TheveninBasedBattery.CoulombSocCounter coulombSocCounter annotation(
-        Placement(visible = true, transformation(origin = {34, -58}, extent = {{-10, -10}, {10, 10}}, rotation = -90)));
-      BatteryMPC.BatteryWithFullCycle.TheveninBasedBattery.voltageSourceSocDependant voltageSource(SocToULookupTableFileName = SocToOcvTableFileName) annotation(
+        Placement(visible = true, transformation(origin = {34, -58}, extent = {{-10, -10}, {10, 10}}, rotation = 270)));
+      BatteryMPC.BatteryWithFullCycle.TheveninBasedBattery.voltageSourceSocDependant U_oc(SocToULookupTableFileName = SocToOcvTableFileName) annotation(
         Placement(visible = true, transformation(origin = {-76, 0}, extent = {{10, 10}, {-10, -10}}, rotation = 0)));
       BatteryMPC.BatteryWithFullCycle.TheveninBasedBattery.CapacityFadingCalculator capacityFadingCalc(C_bat = C_bat, params = capacityFadingParams) annotation(
-        Placement(visible = true, transformation(origin = {-10, -86}, extent = {{-10, -10}, {10, 10}}, rotation = -90)));
+        Placement(visible = true, transformation(origin = {-10, -82}, extent = {{-10, -10}, {10, 10}}, rotation = -90)));
     equation
       SoH = 1 - (capacityFadingCalc.capacityFade + capacityFadingCalc.stepCapacityFade) / (0.2 * C_bat);
+      SoH_last = delay(SoH, 1);
+      SoH_diff = SoH - SoH_last;
       R_s.params = currentParams.R_s;
       R_ts.params = currentParams.R_ts;
       C_ts.params = currentParams.C_ts;
@@ -476,27 +514,27 @@ package BatteryMPC
 // Find voltage difference and modify signalVoltage
       connect(I_bat.i, coulombSocCounter.I_bat) annotation(
         Line(points = {{60, 30}, {60, -64}, {44, -64}}, color = {0, 0, 127}));
-      connect(coulombSocCounter.SoC, C_ts.SoC) annotation(
+  connect(coulombSocCounter.SoC, C_ts.SoC) annotation(
         Line(points = {{23, -58}, {-10, -58}, {-10, 0}}, color = {0, 0, 127}));
-      connect(coulombSocCounter.SoC, C_tl.SoC) annotation(
+  connect(coulombSocCounter.SoC, C_tl.SoC) annotation(
         Line(points = {{23, -58}, {-10, -58}, {-10, -8}, {30, -8}, {30, 0}}, color = {0, 0, 127}));
-      connect(coulombSocCounter.SoC, R_tl.SoC) annotation(
+  connect(coulombSocCounter.SoC, R_tl.SoC) annotation(
         Line(points = {{23, -58}, {6, -58}, {6, 60}, {30, 60}, {30, 52}}, color = {0, 0, 127}));
-      connect(coulombSocCounter.SoC, R_ts.SoC) annotation(
+  connect(coulombSocCounter.SoC, R_ts.SoC) annotation(
         Line(points = {{23, -58}, {6, -58}, {6, 60}, {-10, 60}, {-10, 52}}, color = {0, 0, 127}));
-      connect(coulombSocCounter.SoC, R_s.SoC) annotation(
+  connect(coulombSocCounter.SoC, R_s.SoC) annotation(
         Line(points = {{23, -58}, {6, -58}, {6, 60}, {-48, 60}, {-48, 52}}, color = {0, 0, 127}));
-      connect(voltageSource.p, R_s.n) annotation(
+      connect(U_oc.p, R_s.n) annotation(
         Line(points = {{-66, 0}, {-66, 40}, {-58, 40}}, color = {0, 0, 255}));
-      connect(coulombSocCounter.SoC, voltageSource.SoC) annotation(
+  connect(coulombSocCounter.SoC, U_oc.SoC) annotation(
         Line(points = {{23, -58}, {-75.75, -58}, {-75.75, -12}, {-76, -12}}, color = {0, 0, 127}));
-      connect(coulombSocCounter.SoC, capacityFadingCalc.SoC) annotation(
-        Line(points = {{23, -58}, {-10, -58}, {-10, -76}}, color = {0, 0, 127}));
-      connect(capacityFadingCalc.I, I_bat.i) annotation(
-        Line(points = {{0, -86}, {60, -86}, {60, 30}}, color = {0, 0, 127}));
-      connect(capacityFadingCalc.Q_us, coulombSocCounter.Q_us) annotation(
-        Line(points = {{-21, -86}, {-36, -86}, {-36, -36}, {53, -36}, {53, -54}, {44, -54}}, color = {0, 0, 127}));
-      connect(p, voltageSource.n) annotation(
+  connect(coulombSocCounter.SoC, capacityFadingCalc.SoC) annotation(
+        Line(points = {{23, -58}, {-10, -58}, {-10, -72}}, color = {0, 0, 127}));
+  connect(capacityFadingCalc.I, I_bat.i) annotation(
+        Line(points = {{0, -82}, {60, -82}, {60, 30}}, color = {0, 0, 127}));
+  connect(capacityFadingCalc.Q_us, coulombSocCounter.Q_us) annotation(
+        Line(points = {{-21, -82}, {-36, -82}, {-36, -36}, {53, -36}, {53, -54}, {44, -54}}, color = {0, 0, 127}));
+      connect(p, U_oc.n) annotation(
         Line(points = {{-100, 0}, {-86, 0}, {-86, 0}}, color = {0, 0, 255}));
       connect(I_bat.n, n) annotation(
         Line(points = {{70, 40}, {80, 40}, {80, 0}, {100, 0}}, color = {0, 0, 255}));
@@ -504,7 +542,7 @@ package BatteryMPC
         Line(points = {{40, 12}, {40, 40}}, color = {0, 0, 255}));
     protected
       annotation(
-        Diagram(coordinateSystem(initialScale = 0.1), graphics = {Rectangle(origin = {0.599966, 23.2454}, extent = {{140.429, -43.2454}, {-140.429, 43.2454}}), Text(origin = {78, 63}, extent = {{-28, 5}, {28, -5}}, textString = "Thevenin-based Battery")}),
+        Diagram(coordinateSystem(initialScale = 0.1), graphics = {Rectangle(origin = {0.599966, 23.2454}, extent = {{140.429, -43.2454}, {-140.429, 43.2454}}), Text(origin = {-102, 55}, extent = {{-28, 5}, {28, -5}}, textString = "Thevenin-based model"), Text(origin = {-18, -96}, extent = {{-18, -2}, {18, 2}}, textString = "Q_us calculation"), Text(origin = {20, -74}, extent = {{-18, -2}, {18, 2}}, textString = "SoC calculation")}),
         uses(Modelica(version = "3.2.3")),
         Documentation,
         experiment(StartTime = 0, StopTime = 10000, Tolerance = 1e-06, Interval = 100));
