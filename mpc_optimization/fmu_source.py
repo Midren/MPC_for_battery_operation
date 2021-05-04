@@ -1,21 +1,22 @@
 from pathlib import Path
 
+from OMPython import ModelicaSystem
+
 
 class FmuSource:
     def __init__(self, fmu_path):
         self.fmu_path: Path = fmu_path
 
     @classmethod
-    def from_modelica(cls, model_name: str, model_location: Path):
-        fmu_path = model_name + model_location
-        # TODO: add compiling via OMPython
-        # fmu_path = compile_fmu(model_name,
-        #                        model_location,
-        #                        target='cs',
-        #                        version="2.0",
-        #                        compiler_log_level='warning',  # 'info', 'warning',
-        #                        compiler_options={"generate_html_diagnostics": True,
-        #                                           "nle_solver_tol_factor": 1e-2})  # 1e-2 is the default
+    def from_modelica(cls, model_location: Path, model_name: str):
+        if not model_location.exists():
+            raise ValueError('No such file: ' + str(model_location))
+        modelica_model = ModelicaSystem(str(model_location),
+                                        model_name, ["Modelica"],
+                                        commandLineOptions="--fmiFlags=s:cvode")
+        fmu_path = modelica_model.convertMo2Fmu(fmuType='cs')
+        if not len(fmu_path):
+            raise RuntimeError("Couldn't compile FMU")
         return FmuSource(Path(fmu_path))
 
     @classmethod

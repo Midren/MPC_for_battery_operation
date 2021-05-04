@@ -2,7 +2,7 @@ package BatteryMPC
   model BatteryWithFullCycle
     model TheveninBasedBattery "Basic Battery Model based on Thevenin electrical model"
       extends Modelica.Electrical.Analog.Interfaces.TwoPin;
-
+  
       model VariableSource "Generate signal of type Real"
         Real height(start=0) "Height of step" annotation(
           Dialog(groupImage = "modelica://Modelica/Resources/Images/Blocks/Sources/Step.png"));
@@ -10,7 +10,7 @@ package BatteryMPC
       equation
         y = offset + (if time < startTime then 0 else height);
       end VariableSource;
-
+  
       model VariableVoltageSource
         extends Modelica.Electrical.Analog.Interfaces.VoltageSource(redeclare VariableSource signalSource);
         Modelica.Blocks.Interfaces.RealInput voltage "Connector of Real input signals" annotation(
@@ -20,7 +20,7 @@ package BatteryMPC
         annotation(
           uses(Modelica(version = "3.2.3")));
       end VariableVoltageSource;
-
+  
       model voltageSourceSocDependant "Interface for voltage sources"
         extends Modelica.Electrical.Analog.Interfaces.TwoPin;
         parameter String SocToULookupTableFileName;
@@ -63,7 +63,7 @@ package BatteryMPC
       <p>The VoltageSource partial model prepares voltage sources by providing the pins, and the offset and startTime parameters, which are the same at all voltage sources. The source behavior is taken from Modelica.Blocks signal sources by inheritance and usage of the replaceable possibilities.</p>
       </html>"));
       end voltageSourceSocDependant;
-
+  
       model ChargeDependentResistor
         record Parameters
           Modelica.SIunits.Resistance R_0;
@@ -71,17 +71,17 @@ package BatteryMPC
           Real k2;
           Real k3;
         end Parameters;
-
+  
         extends Modelica.Electrical.Analog.Basic.VariableResistor;
         Modelica.Blocks.Interfaces.RealInput SoC;
         input Parameters params;
       equation
         R = 3600 * (params.R_0 + params.k1 * exp(-params.k2 * SoC) + params.k3 * SoC);
       end ChargeDependentResistor;
-
+  
       model ChargeDependentCapacitor
         extends Modelica.Electrical.Analog.Basic.VariableCapacitor;
-
+  
         record Parameters
           Modelica.SIunits.Capacitance C_0;
           Real k1;
@@ -91,55 +91,49 @@ package BatteryMPC
           Real k5;
           Real k6;
         end Parameters;
-
+  
         Modelica.Blocks.Interfaces.RealInput SoC;
         input Parameters params;
       equation
         C = max(params.C_0 + params.k1 * SoC + params.k2 * SoC ^ 2 + params.k3 * SoC ^ 3 + params.k4 * SoC ^ 4 + params.k5 * SoC ^ 5 + params.k6 * SoC ^ 6, 0) / 3600;
       end ChargeDependentCapacitor;
-
+  
       block CoulombSocCounter
-        Modelica.Blocks.Interfaces.RealInput I_bat "Connector of Real input signals" annotation(
+        Modelica.Blocks.Interfaces.RealInput I_bat(start=0) "Connector of Real input signals" annotation(
           Placement(visible = true, transformation(origin = {120, 26}, extent = {{-20, 20}, {20, -20}}, rotation = 180), iconTransformation(origin = {60, 100}, extent = {{-20, -20}, {20, 20}}, rotation = 270)));
         Modelica.Blocks.Sources.Constant SOC_init(k = 1) annotation(
           Placement(visible = true, transformation(origin = {17, 49}, extent = {{11, -11}, {-11, 11}}, rotation = 0)));
-        Modelica.Blocks.Continuous.Integrator integrator(initType = Modelica.Blocks.Types.Init.InitialState, k = 1) annotation(
-          Placement(visible = true, transformation(origin = {59, 25}, extent = {{11, -11}, {-11, 11}}, rotation = 0)));
         Modelica.Blocks.Math.Sum Sum(k = {1, -1}, nin = 2) annotation(
           Placement(visible = true, transformation(origin = {-26, 0}, extent = {{10, -10}, {-10, 10}}, rotation = 0)));
         Modelica.Blocks.Interfaces.RealOutput SoC annotation(
           Placement(visible = true, transformation(origin = {-110, 0}, extent = {{10, -10}, {-10, 10}}, rotation = 0), iconTransformation(origin = {0, -110}, extent = {{-10, -10}, {10, 10}}, rotation = -90)));
-        Modelica.Blocks.Nonlinear.Limiter socLimiter(limitsAtInit = true, strict = true, uMax = 1, uMin = 0.012) annotation(
-          Placement(visible = true, transformation(origin = {-60, 0}, extent = {{10, -10}, {-10, 10}}, rotation = 0)));
-        Modelica.Blocks.Interfaces.RealInput Q_us annotation(
+        Modelica.Blocks.Interfaces.RealInput Q_us(start=1.1) annotation(
           Placement(visible = true, transformation(origin = {120, -26}, extent = {{20, -20}, {-20, 20}}, rotation = 0), iconTransformation(origin = {-40, 100}, extent = {{-20, -20}, {20, 20}}, rotation = -90)));
         Modelica.Blocks.Math.Division division annotation(
           Placement(visible = true, transformation(origin = {14, -20}, extent = {{10, -10}, {-10, 10}}, rotation = 0)));
+  Modelica.Blocks.Continuous.Integrator integrator annotation(
+          Placement(visible = true, transformation(origin = {60, 24}, extent = {{10, -10}, {-10, 10}}, rotation = 0)));
+  Modelica.Blocks.Nonlinear.Limiter limiter(limitsAtInit = true, uMax = 1, uMin = 0.012)  annotation(
+          Placement(visible = true, transformation(origin = {-70, 0}, extent = {{10, -10}, {-10, 10}}, rotation = 0)));
       equation
         connect(SOC_init.y, Sum.u[1]) annotation(
           Line(points = {{5, 49}, {-4, 49}, {-4, 0}, {-14, 0}}, color = {0, 0, 127}));
-        connect(I_bat, integrator.u) annotation(
-          Line(points = {{120, 26}, {82, 26}, {82, 25}, {72, 25}}, color = {0, 0, 127}));
-        connect(Sum.y, socLimiter.u) annotation(
-          Line(points = {{-37, 0}, {-48, 0}}, color = {0, 0, 127}));
-        connect(socLimiter.y, SoC) annotation(
-          Line(points = {{-71, 0}, {-110, 0}}, color = {0, 0, 127}));
         connect(Q_us, division.u2) annotation(
           Line(points = {{120, -26}, {26, -26}}, color = {0, 0, 127}));
-        connect(integrator.y, division.u1) annotation(
-          Line(points = {{47, 25}, {40, 25}, {40, -14}, {26, -14}}, color = {0, 0, 127}));
         connect(division.y, Sum.u[2]) annotation(
           Line(points = {{3, -20}, {-4.5, -20}, {-4.5, 0}, {-14, 0}}, color = {0, 0, 127}));
+  connect(integrator.u, I_bat) annotation(
+          Line(points = {{72, 24}, {88, 24}, {88, 26}, {120, 26}}, color = {0, 0, 127}));
+  connect(integrator.y, division.u1) annotation(
+          Line(points = {{50, 24}, {34, 24}, {34, -14}, {26, -14}}, color = {0, 0, 127}));
+  connect(Sum.y, limiter.u) annotation(
+          Line(points = {{-36, 0}, {-58, 0}}, color = {0, 0, 127}));
+  connect(limiter.y, SoC) annotation(
+          Line(points = {{-80, 0}, {-110, 0}}, color = {0, 0, 127}));
         annotation(
           uses(Modelica(version = "3.2.3")),
           Icon(coordinateSystem(preserveAspectRatio=true, extent={{-100,-100},{
-                100,100}}), graphics={Rectangle(
-              extent={{-100,-100},{100,100}},
-              lineColor={0,0,127},
-              fillColor={255,255,255},
-              fillPattern=FillPattern.Solid), Text(
-              extent={{-150,150},{150,110}},
-              lineColor={0,0,255})}),
+                100,100}}), graphics={Rectangle(lineColor = {0, 0, 127}, fillColor = {255, 255, 255}, fillPattern = FillPattern.Solid, extent = {{-100, -100}, {100, 100}}), Text(lineColor = {0, 0, 255}, extent = {{-150, 150}, {150, 110}}, textString = "")}),
         Documentation(info="<html>
       <p>
       Block that has only the basic icon for an input/output
@@ -149,7 +143,7 @@ package BatteryMPC
       </p>
       </html>"));
       end CoulombSocCounter;
-
+  
       block CapacityFadingCalculator
         model IntegratorWithReset
           extends Modelica.Blocks.Continuous.Integrator;
@@ -172,9 +166,9 @@ package BatteryMPC
           Modelica.Blocks.Interfaces.BooleanInput reset annotation(
             Placement(visible = true, transformation(origin = {-120, -60}, extent = {{-20, -20}, {20, 20}}, rotation = 0), iconTransformation(origin = {-120, -80}, extent = {{-20, -20}, {20, 20}}, rotation = -360)));
         protected  
-          Real mu "Mean value (state variable)";
-          Real var "Variance (state variable)";
-          Real t_0(fixed=false, start=0) "Start time";
+          Real mu(start=0) "Mean value (state variable)";
+          Real var(start=0) "Variance (state variable)";
+          Real t_0(start=0) "Start time";
         initial equation
           t_0 = time;
           mu  = u;
@@ -205,8 +199,8 @@ package BatteryMPC
           Modelica.Blocks.Interfaces.BooleanInput reset annotation(
             Placement(visible = true, transformation(origin = {-120, -60}, extent = {{-20, -20}, {20, 20}}, rotation = 0), iconTransformation(origin = {-120, -80}, extent = {{-20, -20}, {20, 20}}, rotation = -360)));
         protected
-          Real mu "Internal integrator variable";
-          Real t_0(fixed=false, start=0) "Start time";
+          Real mu(start=0) "Internal integrator variable";
+          Real t_0(start=0) "Start time";
         initial equation
           t_0 = time;
           mu  = u;
@@ -319,7 +313,7 @@ package BatteryMPC
           Real K_soc = 0.916;
         end Parameters;
       
-        parameter Real C_bat "Nominal capacity in Ah";
+        parameter Real C_bat = 1.1 "Nominal capacity in Ah";
         parameter Parameters params;
         Modelica.Blocks.Logical.GreaterThreshold isNotCharging(threshold = 0);
         Real L(start = 0) "Life ageing parameter";
@@ -329,11 +323,11 @@ package BatteryMPC
           Placement(visible = true, transformation(origin = {0, 118}, extent = {{-20, -20}, {20, 20}}, rotation = -90), iconTransformation(origin = {-100, 0}, extent = {{-20, -20}, {20, 20}}, rotation = 0)));
         Modelica.Blocks.Interfaces.RealInput I annotation(
           Placement(visible = true, transformation(origin = {120, 0}, extent = {{-20, 20}, {20, -20}}, rotation = 180), iconTransformation(origin = {0, 100}, extent = {{-20, -20}, {20, 20}}, rotation = -90)));
-        BatteryMPC.BatteryWithFullCycle.TheveninBasedBattery.CapacityFadingCalculator.IntegratorWithReset Ah_throughput(y_start = 0) annotation(
+        Modelica.Blocks.Continuous.Integrator Ah_throughput(use_reset = true, y_start = 0) annotation(
           Placement(visible = true, transformation(origin = {10, 0}, extent = {{10, -10}, {-10, 10}}, rotation = 0)));
         Modelica.Blocks.Math.Abs I_abs annotation(
           Placement(visible = true, transformation(origin = {42, 0}, extent = {{10, -10}, {-10, 10}}, rotation = 0)));
-        Modelica.Blocks.Interfaces.RealOutput Q_us(start = C_bat) annotation(
+        Modelica.Blocks.Interfaces.RealOutput Q_us(start = C_bat, fixed=true) annotation(
           Placement(visible = true, transformation(origin = {-110, 0}, extent = {{-10, 10}, {10, -10}}, rotation = 180), iconTransformation(origin = {0, -110}, extent = {{-10, 10}, {10, -10}}, rotation = -90)));
       MeanWithReset SoC_avg annotation(
           Placement(visible = true, transformation(origin = {-30, 70}, extent = {{10, -10}, {-10, 10}}, rotation = 0)));
@@ -347,7 +341,6 @@ package BatteryMPC
           Placement(visible = true, transformation(origin = {-30, -14}, extent = {{10, -10}, {-10, 10}}, rotation = 0)));
       Modelica.Blocks.Sources.Constant cycle_charge(k = 2 * C_bat)  annotation(
           Placement(visible = true, transformation(origin = {10, -30}, extent = {{10, -10}, {-10, 10}}, rotation = 0)));
-      
       equation
         connect(isNotCharging.u, I) annotation(
           Line);
@@ -399,7 +392,7 @@ package BatteryMPC
       </html>"));
       
       end CapacityFadingCalculator;
-
+  
       model SeriesResistor
         record Parameters
           Modelica.SIunits.Resistance R_0;
@@ -408,14 +401,14 @@ package BatteryMPC
           Real k3;
           Real k4;
         end Parameters;
-
+  
         extends Modelica.Electrical.Analog.Basic.VariableResistor;
         Modelica.Blocks.Interfaces.RealInput SoC;
         input Parameters params;
       equation
         R = (params.R_0 + params.k1 * SoC + params.k2 * SoC ^ 2 + params.k3 * SoC ^ 3 + params.k4 * SoC ^ 4) * 3600;
       end SeriesResistor;
-
+  
       model ShortTimeTransientResistor
         record Parameters
           Modelica.SIunits.Resistance R_0;
@@ -423,14 +416,14 @@ package BatteryMPC
           Real k2;
           Real k3;
         end Parameters;
-
+  
         extends Modelica.Electrical.Analog.Basic.VariableResistor;
         Modelica.Blocks.Interfaces.RealInput SoC;
         input Parameters params;
       equation
         R = params.R_0 + params.k1 * exp(params.k2 * SoC) + params.k3 * SoC;
       end ShortTimeTransientResistor;
-
+  
       model LongTimeTransientResistor
         record Parameters
           Modelica.SIunits.Resistance R_0;
@@ -438,14 +431,14 @@ package BatteryMPC
           Real k2;
           Real k3;
         end Parameters;
-
+  
         extends Modelica.Electrical.Analog.Basic.VariableResistor;
         Modelica.Blocks.Interfaces.RealInput SoC;
         input Parameters params;
       equation
         R = params.R_0 + params.k1 * exp(params.k2 * SoC) + params.k3 * SoC;
       end LongTimeTransientResistor;
-
+  
       record TheveninBasedModelParameters
         SeriesResistor.Parameters R_s;
         ChargeDependentResistor.Parameters R_ts;
@@ -453,7 +446,7 @@ package BatteryMPC
         ChargeDependentCapacitor.Parameters C_ts;
         ChargeDependentCapacitor.Parameters C_tl;
       end TheveninBasedModelParameters;
-
+  
       constant TheveninBasedModelParameters dischargingParams(R_s = SeriesResistor.Parameters(R_0 = 8.98e-2, k1 = -7.216e-2, k2 = 2.273e-1, k3 = -2.892e-1, k4 = 1.298e-1), R_ts = ChargeDependentResistor.Parameters(R_0 = 1.827e-2, k1 = 1.080e-2, k2 = 11.03, k3 = -6.463e-3), R_tl = ChargeDependentResistor.Parameters(R_0 = 4.722e-2, k1 = 2.95e-1, k2 = 20.00, k3 = -2.420e-2), C_ts = ChargeDependentCapacitor.Parameters(C_0 = 389.7, k1 = 1408, k2 = -1007, k3 = 169.7, k4 = 0, k5 = 0, k6 = 0), C_tl = ChargeDependentCapacitor.Parameters(C_0 = 2.232e3, k1 = -3.102e4, k2 = 5.998e5, k3 = -2.958e6, k4 = 6.271e6, k5 = -6.007e6, k6 = 2.130e6));
       constant TheveninBasedModelParameters chargingParams(R_s = SeriesResistor.Parameters(R_0 = 8.210e-2, k1 = -4.1006e-2, k2 = 1.609e-1, k3 = -2.518e-1, k4 = 1.369e-1), R_ts = ChargeDependentResistor.Parameters(R_0 = 1.4e-2, k1 = 7.13e-11, k2 = -21.11, k3 = 0), R_tl = ChargeDependentResistor.Parameters(R_0 = 3.1e-2, k1 = 8.913e-15, k2 = -32.23, k3 = 4.473e-3), C_ts = ChargeDependentCapacitor.Parameters(C_0 = 6.849e2, k1 = 2.340e3, k2 = -1.013e4, k3 = 1.723e4, k4 = -1.026e4, k5 = 0, k6 = 0), C_tl = ChargeDependentCapacitor.Parameters(C_0 = 7.144e3, k1 = 2.283e4, k2 = -8.124e4, k3 = -4.009e3, k4 = 2.042e5, k5 = -1.541e5, k6 = 0));
       parameter Real C_bat = 1.1;
@@ -495,7 +488,7 @@ package BatteryMPC
       else
         currentParams = dischargingParams;
       end if;
-// main circuit
+  // main circuit
       connect(R_s.p, R_ts.n) annotation(
         Line(points = {{-20, 40}, {-38, 40}, {-38, 40}, {-38, 40}}, color = {0, 0, 255}));
       connect(R_ts.n, C_ts.n) annotation(
@@ -510,8 +503,8 @@ package BatteryMPC
         Line(points = {{40, 12}, {40, 12}}, color = {0, 0, 255}));
       connect(R_tl.p, I_bat.p) annotation(
         Line(points = {{40, 40}, {50, 40}}, color = {0, 0, 255}));
-// Find required voltage
-// Find voltage difference and modify signalVoltage
+  // Find required voltage
+  // Find voltage difference and modify signalVoltage
       connect(I_bat.i, coulombSocCounter.I_bat) annotation(
         Line(points = {{60, 30}, {60, -64}, {44, -64}}, color = {0, 0, 127}));
   connect(coulombSocCounter.SoC, C_ts.SoC) annotation(
@@ -547,29 +540,30 @@ package BatteryMPC
         Documentation,
         experiment(StartTime = 0, StopTime = 10000, Tolerance = 1e-06, Interval = 100));
     end TheveninBasedBattery;
-
+  
     parameter Real C_bat = 1.1;
     parameter Real I_dis = C_bat / 3600;
-    BatteryWithFullCycle.TheveninBasedBattery theveninBasedBattery(C_bat = C_bat) annotation(
-      Placement(visible = true, transformation(origin = {-4, 20}, extent = {{-10, -10}, {10, 10}}, rotation = 0)));
+    BatteryMPC.BatteryWithFullCycle.TheveninBasedBattery theveninBasedBattery(C_bat = C_bat) annotation(
+      Placement(visible = true, transformation(origin = {0, 20}, extent = {{-10, -10}, {10, 10}}, rotation = 0)));
     Modelica.Electrical.Analog.Basic.Ground ground annotation(
       Placement(visible = true, transformation(origin = {-50, -26}, extent = {{-10, -10}, {10, 10}}, rotation = 0)));
     Modelica.Electrical.Analog.Sources.SignalCurrent pulseLoad annotation(
       Placement(visible = true, transformation(origin = {0, -16}, extent = {{10, 10}, {-10, -10}}, rotation = 0)));
-    Modelica.Blocks.Interfaces.RealInput I_req annotation(
-      Placement(visible = true, transformation(origin = {-100, -68}, extent = {{-20, -20}, {20, 20}}, rotation = 0), iconTransformation(origin = {-96, -48}, extent = {{-20, -20}, {20, 20}}, rotation = 0)));
+  Modelica.Blocks.Interfaces.RealInput I_req annotation(
+      Placement(visible = true, transformation(origin = {-100, -68}, extent = {{-20, -20}, {20, 20}}, rotation = 0)));
   equation
     connect(ground.p, theveninBasedBattery.p) annotation(
-      Line(points = {{-50, -16}, {-50, 20}, {-14, 20}}, color = {0, 0, 255}));
+      Line(points = {{-50, -16}, {-50, 20}, {-10, 20}}, color = {0, 0, 255}));
     connect(pulseLoad.n, ground.p) annotation(
       Line(points = {{-10, -16}, {-50, -16}}, color = {0, 0, 255}));
     connect(theveninBasedBattery.n, pulseLoad.p) annotation(
-      Line(points = {{6, 20}, {20, 20}, {20, -16}, {10, -16}}, color = {0, 0, 255}));
+      Line(points = {{10, 20}, {20, 20}, {20, -16}, {10, -16}}, color = {0, 0, 255}));
     connect(I_req, pulseLoad.i) annotation(
       Line(points = {{-100, -68}, {0, -68}, {0, -28}}, color = {0, 0, 127}));
     annotation(
       uses(Modelica(version = "3.2.3")),
-      experiment(StartTime = 0, StopTime = 10000, Tolerance = 1e-6, Interval = 100));
+      experiment(StartTime = 0, StopTime = 10000, Tolerance = 1e-6, Interval = 100),
+  Diagram);
   end BatteryWithFullCycle;
   annotation(
     uses(Modelica(version = "3.2.3")));
