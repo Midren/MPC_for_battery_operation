@@ -454,7 +454,8 @@ package BatteryMPC
       parameter CapacityFadingCalculator.Parameters capacityFadingParams(K_co = 3.66e-5, K_ex = 0.717, K_soc = 0.916);
       Real SoH(start = 1);
       Real SoH_last(start = 1);
-      Real SoH_diff(start = 0);
+    Modelica.Blocks.Interfaces.RealOutput SoH_diff(start=0) annotation(
+        Placement(visible = true, transformation(origin = {40, 110}, extent = {{-10, -10}, {10, 10}}, rotation = 90), iconTransformation(origin = {36, 94}, extent = {{-10, -10}, {10, 10}}, rotation = 0)));
       TheveninBasedModelParameters currentParams;
       SeriesResistor R_s annotation(
         Placement(visible = true, transformation(origin = {-48, 40}, extent = {{10, -10}, {-10, 10}}, rotation = 0)));
@@ -474,6 +475,8 @@ package BatteryMPC
         Placement(visible = true, transformation(origin = {-76, 0}, extent = {{10, 10}, {-10, -10}}, rotation = 0)));
       BatteryMPC.BatteryWithFullCycle.TheveninBasedBattery.CapacityFadingCalculator capacityFadingCalc(C_bat = C_bat, params = capacityFadingParams) annotation(
         Placement(visible = true, transformation(origin = {-10, -82}, extent = {{-10, -10}, {10, 10}}, rotation = -90)));
+  Modelica.Blocks.Interfaces.RealOutput SoC annotation(
+        Placement(visible = true, transformation(origin = {-40, 110}, extent = {{-10, -10}, {10, 10}}, rotation = 90), iconTransformation(origin = {-56, 92}, extent = {{-10, -10}, {10, 10}}, rotation = 0)));
     equation
       SoH = 1 - (capacityFadingCalc.capacityFade + capacityFadingCalc.stepCapacityFade) / (0.2 * C_bat);
       SoH_last = delay(SoH, 1);
@@ -533,6 +536,8 @@ package BatteryMPC
         Line(points = {{70, 40}, {80, 40}, {80, 0}, {100, 0}}, color = {0, 0, 255}));
       connect(C_tl.p, R_tl.p) annotation(
         Line(points = {{40, 12}, {40, 40}}, color = {0, 0, 255}));
+  connect(coulombSocCounter.SoC, SoC) annotation(
+        Line(points = {{24, -58}, {6, -58}, {6, 60}, {-40, 60}, {-40, 110}}, color = {0, 0, 127}));
     protected
       annotation(
         Diagram(coordinateSystem(initialScale = 0.1), graphics = {Rectangle(origin = {0.599966, 23.2454}, extent = {{140.429, -43.2454}, {-140.429, 43.2454}}), Text(origin = {-102, 55}, extent = {{-28, 5}, {28, -5}}, textString = "Thevenin-based model"), Text(origin = {-18, -96}, extent = {{-18, -2}, {18, 2}}, textString = "Q_us calculation"), Text(origin = {20, -74}, extent = {{-18, -2}, {18, 2}}, textString = "SoC calculation")}),
@@ -551,15 +556,23 @@ package BatteryMPC
       Placement(visible = true, transformation(origin = {0, -16}, extent = {{10, 10}, {-10, -10}}, rotation = 0)));
   Modelica.Blocks.Interfaces.RealInput I_req annotation(
       Placement(visible = true, transformation(origin = {-100, -68}, extent = {{-20, -20}, {20, 20}}, rotation = 0)));
+  Modelica.Blocks.Interfaces.RealOutput SoC annotation(
+      Placement(visible = true, transformation(origin = {-40, 110}, extent = {{10, -10}, {-10, 10}}, rotation = -90), iconTransformation(origin = {-38, 94}, extent = {{-10, -10}, {10, 10}}, rotation = 0)));
+  Modelica.Blocks.Interfaces.RealOutput SoH_diff annotation(
+      Placement(visible = true, transformation(origin = {40, 110}, extent = {{-10, 10}, {10, -10}}, rotation = 90), iconTransformation(origin = {62, 76}, extent = {{-10, -10}, {10, 10}}, rotation = 0)));
   equation
-    connect(ground.p, theveninBasedBattery.p) annotation(
+  connect(ground.p, theveninBasedBattery.p) annotation(
       Line(points = {{-50, -16}, {-50, 20}, {-10, 20}}, color = {0, 0, 255}));
     connect(pulseLoad.n, ground.p) annotation(
       Line(points = {{-10, -16}, {-50, -16}}, color = {0, 0, 255}));
-    connect(theveninBasedBattery.n, pulseLoad.p) annotation(
+  connect(theveninBasedBattery.n, pulseLoad.p) annotation(
       Line(points = {{10, 20}, {20, 20}, {20, -16}, {10, -16}}, color = {0, 0, 255}));
     connect(I_req, pulseLoad.i) annotation(
       Line(points = {{-100, -68}, {0, -68}, {0, -28}}, color = {0, 0, 127}));
+  connect(theveninBasedBattery.SoC, SoC) annotation(
+      Line(points = {{-6, 30}, {-6, 80}, {-40, 80}, {-40, 110}}, color = {0, 0, 127}));
+  connect(theveninBasedBattery.SoH_diff, SoH_diff) annotation(
+      Line(points = {{4, 30}, {4, 80}, {40, 80}, {40, 110}}, color = {0, 0, 127}));
     annotation(
       uses(Modelica(version = "3.2.3")),
       experiment(StartTime = 0, StopTime = 10000, Tolerance = 1e-6, Interval = 100),

@@ -1,6 +1,13 @@
+from dataclasses import dataclass
 from pathlib import Path
 
 from OMPython import ModelicaSystem
+
+
+@dataclass
+class ModelicaModelInfo:
+    location: Path
+    name: str
 
 
 class FmuSource:
@@ -8,11 +15,11 @@ class FmuSource:
         self.fmu_path: Path = fmu_path
 
     @classmethod
-    def from_modelica(cls, model_location: Path, model_name: str):
-        if not model_location.exists():
-            raise ValueError('No such file: ' + str(model_location))
-        modelica_model = ModelicaSystem(str(model_location),
-                                        model_name, ["Modelica"],
+    def from_modelica(cls, model_info: ModelicaModelInfo):
+        if not model_info.location.exists():
+            raise ValueError('No such file: ' + str(model_info.location))
+        modelica_model = ModelicaSystem(str(model_info.location),
+                                        model_info.name, ["Modelica"],
                                         commandLineOptions="--fmiFlags=s:cvode")
         fmu_path = modelica_model.convertMo2Fmu(fmuType='cs')
         if not len(fmu_path):

@@ -13,21 +13,21 @@ from scipy.optimize import minimize_scalar
 from tqdm import tqdm
 
 from .fmi_cs_alg_progressbar import FMICSAlgWithProgressBar
-from .fmu_source import FmuSource
+from .fmu_source import FmuSource, ModelicaModelInfo
 
 ModelVariables = t.Dict[str, t.Any]
 
 
 class MPCOptimizer:
     def __init__(self,
-                 fmu: FmuSource,
+                 model_info: ModelicaModelInfo,
                  state_variables: t.List[str],
                  input_vec: t.List[str],
                  output_vec: t.List[str],
                  horizon_num: int,
                  initial_parameters: t.Dict[str, t.Any] = dict(),
                  points_per_sec: float = 1):
-        self.model: fmi.FMUModelCS2 = load_fmu(str(fmu.fmu_path), log_level=4)
+        self.model: fmi.FMUModelCS2 = load_fmu(str(FmuSource.from_modelica(model_info).fmu_path), log_level=4)
         self.model.set_max_log_size(2073741824)  # = 2*1024^3 (about 2GB)
 
         # FMU exported from OpenModelica doesn't estimate from time 0,
@@ -50,7 +50,7 @@ class MPCOptimizer:
         all_parameters = list(self.model.get_model_variables(variability=1, filter='[!_]*').keys())
         for param in initial_parameters:
             if param not in all_parameters:
-                raise ValueError("Variable is not modle parameter:", param)
+                raise ValueError("Variable is not model parameter:", param)
         # TODO: add checking if variables are parameters
         self.initial_parameters = initial_parameters
 
