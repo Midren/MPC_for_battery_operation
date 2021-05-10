@@ -20,7 +20,9 @@ class FmuSource:
             raise ValueError('No such file: ' + str(model_info.location))
         modelica_model = ModelicaSystem(str(model_info.location),
                                         model_info.name, ["Modelica"],
-                                        commandLineOptions="--fmiFlags=s:cvode")
+                                        commandLineOptions="--fmiFlags=s:cvode -d=initialization")
+        modelica_model.setSimulationOptions(["startTime=0", "stopTime=0"])
+        modelica_model.simulate()
         fmu_path = modelica_model.convertMo2Fmu(fmuType='cs')
         if not len(fmu_path):
             raise RuntimeError("Couldn't compile FMU")

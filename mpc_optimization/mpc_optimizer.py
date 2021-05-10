@@ -1,6 +1,7 @@
 import logging
 import typing as t
 from itertools import chain
+from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -14,8 +15,8 @@ from tqdm import tqdm
 
 from .fmi_cs_alg_progressbar import FMICSAlgWithProgressBar
 from .fmu_source import FmuSource, ModelicaModelInfo
-
-ModelVariables = t.Dict[str, t.Any]
+from .linearization import get_linear_model_matrices, linearize_model
+from .utils import ModelVariables, VariableType
 
 
 class MPCOptimizer:
@@ -25,13 +26,27 @@ class MPCOptimizer:
                  input_vec: t.List[str],
                  output_vec: t.List[str],
                  horizon_num: int,
+                 fmu_path: t.Optional[FmuSource] = None,
                  initial_parameters: t.Dict[str, t.Any] = dict(),
                  points_per_sec: float = 1):
-        self.model: fmi.FMUModelCS2 = load_fmu(str(FmuSource.from_modelica(model_info).fmu_path), log_level=4)
+        if fmu_path is not None:
+            try:
+                self.model: fmi.FMUModelCS2 = load_fmu(str(FmuSource.from_fmu(fmu_path).fmu_path),
+                                                       log_level=6)
+            except:
+                self.model: fmi.FMUModelCS2 = load_fmu(str(
+                    FmuSource.from_modelica(model_info).fmu_path),
+                                                       log_level=4)
+        else:
+            self.model: fmi.FMUModelCS2 = load_fmu(str(
+                FmuSource.from_modelica(model_info).fmu_path),
+                                                   log_level=4)
+        self.model.set_log_level(6)
         self.model.set_max_log_size(2073741824)  # = 2*1024^3 (about 2GB)
 
         # FMU exported from OpenModelica doesn't estimate from time 0,
         # so simulation from 0 to 0 helps
+        self._set_vars(initial_parameters)
         opts = self.model.simulate_options()
         opts['silent_mode'] = True
         self.model.simulate(0, 0, options=opts)
@@ -51,10 +66,9 @@ class MPCOptimizer:
         for param in initial_parameters:
             if param not in all_parameters:
                 raise ValueError("Variable is not model parameter:", param)
-        # TODO: add checking if variables are parameters
         self.initial_parameters = initial_parameters
 
-        self.initial_state = {var: self.model.get(var) for var in self.model.get_states_list()}
+        self.initial_state = {var: self.model.get(var) if var != 'time' else -1 for var in chain(self.state_variables, self.input_vars, self.output_vars)}
 
     def simulate(self,
                  start: float,
@@ -64,17 +78,20 @@ class MPCOptimizer:
                  verbose=True,
                  full_run: bool = True):
         if full_run:
-            self._reset(start_time=start, control_df=input_df)
+            self._reset(start=start, control_df=input_df)
         opts = self.model.simulate_options()
-        opts['ncp'] = int((end - start) * self.points_per_sec)
+        if start != end:
+            opts['ncp'] = int((end - start) * self.points_per_sec)
         opts['initialize'] = False
         opts['silent_mode'] = True
         # opts["logging"] = True
-        # self.model.set("_log_level", 4)
+
+        def find_index(timepoint):
+            return np.argmin(np.abs(input_df.index - timepoint))
 
         res = self.model.simulate(start_time=start,
                                   final_time=end,
-                                  input=(self.input_vars, input_df.reset_index().values[start:end]),
+                                  input=(self.input_vars, input_df.reset_index().values[find_index(start):find_index(end)]),
                                   options=opts,
                                   algorithm=FMICSAlgWithProgressBar if verbose else FMICSAlg)
 
@@ -109,7 +126,7 @@ class MPCOptimizer:
             self.model.set(state_var, val)
 
     def _reset(self,
-               start_time: float,
+               start: float,
                state: t.Optional[ModelVariables] = None,
                control_df: t.Optional[pd.DataFrame] = None):
         self.model.reset()
@@ -119,7 +136,7 @@ class MPCOptimizer:
         # Currently after re-setting state variables
         # model simulate doesn't show the same behavior
         if state is not None:
-            self.model.setup_experiment(start_time=start_time)
+            self.model.setup_experiment(start_time=start)
             self.model.initialize()
             self._set_vars(state)
 
@@ -130,8 +147,8 @@ class MPCOptimizer:
             self.model.setup_experiment(start_time=0)
             self.model.initialize()
 
-            if start_time > 0:
-                self.simulate(0, start_time, input_df=control_df, verbose=False)
+            if start > 0:
+                self.simulate(start=0, end=start, input_df=control_df, verbose=False, full_run=False)
 
     def optimize(self,
                  start: float,
@@ -143,14 +160,15 @@ class MPCOptimizer:
                  step: float = 1,
                  iteration_callbacks: t.List[t.Callable[[int, pd.DataFrame], None]] = [],
                  early_stopping_funcs: t.List[t.Callable[[int, ModelVariables], bool]] = []):
-        last_state: t.Optional[ModelVariables] = None
+        last_state: ModelVariables
         input_df = initial_guess.copy()
-        for step_num, st in enumerate(tqdm(np.arange(start + 1, end, step))):
+
+        for step_num, st in enumerate(tqdm(np.arange(start, end, step))):
             simulation_cache = dict()
 
-            def sim_function(u, self, last_state):
+            def sim_function(u, self):
                 input_df.iloc[(input_df.index >= st) & (input_df.index < st + step)] = u
-                self._reset(start_time=st, control_df=input_df)
+                self._reset(start=st, control_df=input_df)
                 #                            state=last_state)
                 try:
                     state, input, output = self.simulate(st,
@@ -160,32 +178,33 @@ class MPCOptimizer:
                                                          full_run=False)
                     simulation_cache[u] = (state, input, output)
                     return objective_func(state, input, output)
-                except:
+                except fmi.FMUException:
+                    logging.warn('Simulation failed during opmization')
                     return 1000000000
 
             optim = minimize_scalar(sim_function,
                                     bounds=bounds[self.input_vars[0]],
-                                    args=(self, last_state),
+                                    args=(self),
                                     method='bounded',
                                     options={'xatol': 1e-7})
             input_df.iloc[(input_df.index >= st)
                           & (input_df.index <= min(st + step, end))] = optim.x
 
-            self._reset(start_time=st, control_df=input_df)
+            self._reset(start=st, control_df=input_df)
             #                            state=last_state)
             state, input, output = self.simulate(st,
                                                  min(st + step, end),
                                                  input_df,
                                                  verbose=False,
                                                  full_run=False)
+
             for callback in iteration_callbacks:
                 callback(step_num, state)
 
             last_state = dict(zip(state.iloc[-1].index, state.iloc[-1].values))
-            self.initial_state = {var: self.model.get(var) for var in self.model.get_states_list()}
 
             if any([func(step_num, last_state) for func in early_stopping_funcs]):
                 logging.info('Stopped optimization due to early stopping')
-                return input_df
+                return input_df[:np.argmin(np.abs(input_df.index - (st + step)))]
 
-        return input_df
+        return input_df[:np.argmin(np.abs(input_df.index - (st + step)))]

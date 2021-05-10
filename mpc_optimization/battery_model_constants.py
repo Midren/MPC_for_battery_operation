@@ -34,10 +34,10 @@ State_vars_aliases_dict: t.Final[t.Dict[str, str]] = {
     'Ah_throughput': 'theveninBasedBattery.capacityFadingCalc.Ah_throughput.y',
     't_last': 'theveninBasedBattery.capacityFadingCalc.cycleStartTime',
     'I_req': 'I_req',
-    'SoC': 'theveninBasedBattery.coulombSocCounter.SoC',
+    'SoC': 'SoC',
     'delta_SoH': 'theveninBasedBattery.SoH_diff',
     'SoH_delay': 'theveninBasedBattery.SoH_last',
-    'SoH': 'theveninBasedBattery.SoH',
+    'SoH': 'SoH',
     'U': 'theveninBasedBattery.v',
     'is_not_charging': 'theveninBasedBattery.capacityFadingCalc.isNotCharging.y',
 }

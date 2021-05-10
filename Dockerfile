@@ -9,7 +9,7 @@ ENV SUNDIALS_HOME /usr/local/JModelica/ThirdParty/Sundials
 #ENV PYTHONPATH /usr/local/JModelica/Python/:/usr/local/JModelica/Python/pymodelica/:
 ENV LD_LIBRARY_PATH /usr/local/Ipopt-3.12.4/lib/:/usr/local/JModelica/ThirdParty/Sundials/lib:/usr/local/JModelica/ThirdParty/CasADi/lib:/usr/local/JModelica/Python/pyfmi
 ENV SEPARATE_PROCESS_JVM /usr/lib/jvm/java-8-openjdk-amd64/
-ENV MODELICAPATH /usr/local/JModelica/ThirdParty/MSL:/home/developer/modelica
+#ENV MODELICAPATH /usr/local/JModelica/ThirdParty/MSL:/home/developer/modelica
 ENV JAVA_HOME /usr/lib/jvm/java-8-openjdk-amd64
 ENV JCC_JDK /usr/lib/jvm/java-8-openjdk-amd64
 ENV PATH="/home/developer/miniconda3/bin:${PATH}"
@@ -57,6 +57,18 @@ RUN conda init bash
 RUN mkdir /home/developer/ipynotebooks && \
     mkdir /home/developer/modelica && \
     mkdir /home/developer/python_libs/mpc_optimization -p
+
+
+RUN sudo apt update -y && \
+    sudo apt install -y lsb-release
+
+RUN for deb in deb deb-src; do echo "$deb http://build.openmodelica.org/apt `lsb_release -cs` release"; done | sudo tee /etc/apt/sources.list.d/openmodelica.list && \
+    wget -q http://build.openmodelica.org/apt/openmodelica.asc -O- | sudo apt-key add - && \
+    apt-key fingerprint && \
+    sudo apt update -y && \
+    sudo apt install -y openmodelica omlib-modelica-3.2.3
+
+RUN pip3 install ompython
 
 ENV USER developer
 ENV DISPLAY :0.0
