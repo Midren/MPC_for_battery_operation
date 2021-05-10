@@ -101,7 +101,7 @@ package BatteryMPC
       block CoulombSocCounter
         Modelica.Blocks.Interfaces.RealInput I_bat(start=0) "Connector of Real input signals" annotation(
           Placement(visible = true, transformation(origin = {120, 26}, extent = {{-20, 20}, {20, -20}}, rotation = 180), iconTransformation(origin = {60, 100}, extent = {{-20, -20}, {20, 20}}, rotation = 270)));
-        Modelica.Blocks.Sources.Constant SOC_init(k = 1) annotation(
+        Modelica.Blocks.Sources.Constant SOC_init(k = 0.95) annotation(
           Placement(visible = true, transformation(origin = {17, 49}, extent = {{11, -11}, {-11, 11}}, rotation = 0)));
         Modelica.Blocks.Math.Sum Sum(k = {1, -1}, nin = 2) annotation(
           Placement(visible = true, transformation(origin = {-26, 0}, extent = {{10, -10}, {-10, 10}}, rotation = 0)));
@@ -113,8 +113,6 @@ package BatteryMPC
           Placement(visible = true, transformation(origin = {14, -20}, extent = {{10, -10}, {-10, 10}}, rotation = 0)));
   Modelica.Blocks.Continuous.Integrator integrator annotation(
           Placement(visible = true, transformation(origin = {60, 24}, extent = {{10, -10}, {-10, 10}}, rotation = 0)));
-  Modelica.Blocks.Nonlinear.Limiter limiter(limitsAtInit = true, uMax = 1, uMin = 0)  annotation(
-          Placement(visible = true, transformation(origin = {-70, 0}, extent = {{10, -10}, {-10, 10}}, rotation = 0)));
       equation
         connect(SOC_init.y, Sum.u[1]) annotation(
           Line(points = {{5, 49}, {-4, 49}, {-4, 0}, {-14, 0}}, color = {0, 0, 127}));
@@ -122,14 +120,12 @@ package BatteryMPC
           Line(points = {{120, -26}, {26, -26}}, color = {0, 0, 127}));
         connect(division.y, Sum.u[2]) annotation(
           Line(points = {{3, -20}, {-4.5, -20}, {-4.5, 0}, {-14, 0}}, color = {0, 0, 127}));
-  connect(integrator.u, I_bat) annotation(
-          Line(points = {{72, 24}, {88, 24}, {88, 26}, {120, 26}}, color = {0, 0, 127}));
-  connect(integrator.y, division.u1) annotation(
+        connect(integrator.y, division.u1) annotation(
           Line(points = {{50, 24}, {34, 24}, {34, -14}, {26, -14}}, color = {0, 0, 127}));
-  connect(Sum.y, limiter.u) annotation(
-          Line(points = {{-36, 0}, {-58, 0}}, color = {0, 0, 127}));
-  connect(limiter.y, SoC) annotation(
-          Line(points = {{-80, 0}, {-110, 0}}, color = {0, 0, 127}));
+        connect(integrator.u, I_bat) annotation(
+          Line(points = {{72, 24}, {88, 24}, {88, 26}, {120, 26}}, color = {0, 0, 127}));
+  connect(Sum.y, SoC) annotation(
+          Line(points = {{-36, 0}, {-110, 0}}, color = {0, 0, 127}));
         annotation(
           uses(Modelica(version = "3.2.3")),
           Icon(coordinateSystem(preserveAspectRatio=true, extent={{-100,-100},{
@@ -452,9 +448,9 @@ package BatteryMPC
       parameter Real C_bat = 1;
       parameter String SocToOcvTableFileName = "/home/developer/modelica/soc_to_u_bat_tookup.txt";
       parameter CapacityFadingCalculator.Parameters capacityFadingParams(K_co = 3.66e-5, K_ex = 0.717, K_soc = 0.916);
-      Real SoH(start = 1);
+      Modelica.Blocks.Interfaces.RealOutput SoH(start = 1);
       Real SoH_last(start = 1);
-    Modelica.Blocks.Interfaces.RealOutput SoH_diff(start=0) annotation(
+      Real SoH_diff(start=0) annotation(
         Placement(visible = true, transformation(origin = {40, 110}, extent = {{-10, -10}, {10, 10}}, rotation = 90), iconTransformation(origin = {36, 94}, extent = {{-10, -10}, {10, 10}}, rotation = 0)));
       TheveninBasedModelParameters currentParams;
       SeriesResistor R_s annotation(
@@ -554,16 +550,76 @@ package BatteryMPC
       Placement(visible = true, transformation(origin = {-50, -26}, extent = {{-10, -10}, {10, 10}}, rotation = 0)));
     Modelica.Electrical.Analog.Sources.SignalCurrent pulseLoad annotation(
       Placement(visible = true, transformation(origin = {0, -16}, extent = {{10, 10}, {-10, -10}}, rotation = 0)));
-  Modelica.Blocks.Interfaces.RealInput I_req annotation(
-      Placement(visible = true, transformation(origin = {-100, -68}, extent = {{-20, -20}, {20, 20}}, rotation = 0)));
   Modelica.Blocks.Interfaces.RealOutput SoC annotation(
       Placement(visible = true, transformation(origin = {-40, 110}, extent = {{10, -10}, {-10, 10}}, rotation = -90), iconTransformation(origin = {-38, 94}, extent = {{-10, -10}, {10, 10}}, rotation = 0)));
-  Modelica.Blocks.Interfaces.RealOutput SoH_diff annotation(
+  Modelica.Blocks.Interfaces.RealOutput SoH annotation(
       Placement(visible = true, transformation(origin = {40, 110}, extent = {{-10, 10}, {10, -10}}, rotation = 90), iconTransformation(origin = {62, 76}, extent = {{-10, -10}, {10, 10}}, rotation = 0)));
   Modelica.Electrical.Analog.Sensors.VoltageSensor batteryVoltageSensor annotation(
       Placement(visible = true, transformation(origin = {0, 58}, extent = {{10, 10}, {-10, -10}}, rotation = 0)));
   Modelica.Blocks.Interfaces.RealOutput batteryOutput annotation(
       Placement(visible = true, transformation(origin = {0, 110}, extent = {{-10, -10}, {10, 10}}, rotation = 90), iconTransformation(origin = {2, 104}, extent = {{-10, -10}, {10, 10}}, rotation = 0)));
+
+    block LimInput
+      Modelica.Blocks.Interfaces.RealOutput limited_current annotation(
+        Placement(visible = true, transformation(origin = {110, -2}, extent = {{-10, -10}, {10, 10}}, rotation = 0), iconTransformation(origin = {110, -2}, extent = {{-10, -10}, {10, 10}}, rotation = 0)));
+      Modelica.Blocks.Interfaces.RealInput current annotation(
+        Placement(visible = true, transformation(origin = {-100, 0}, extent = {{-20, -20}, {20, 20}}, rotation = 0), iconTransformation(origin = {-92, -2}, extent = {{-20, -20}, {20, 20}}, rotation = 0)));
+  Modelica.Blocks.Interfaces.RealInput SoC annotation(
+        Placement(visible = true, transformation(origin = {0, 100}, extent = {{-20, -20}, {20, 20}}, rotation = -90), iconTransformation(origin = {-4, 90}, extent = {{-20, -20}, {20, 20}}, rotation = 0)));
+  Modelica.Blocks.Logical.Switch switch1 annotation(
+        Placement(visible = true, transformation(origin = {-10, 50}, extent = {{-10, -10}, {10, 10}}, rotation = 0)));
+  Modelica.Blocks.MathBoolean.And and1(nu = 2) annotation(
+        Placement(visible = true, transformation(origin = {-52, 50}, extent = {{-6, -6}, {6, 6}}, rotation = 0)));
+  Modelica.Blocks.Logical.LessEqualThreshold lessEqualThreshold(threshold = 0.01) annotation(
+        Placement(visible = true, transformation(origin = {-22, -42}, extent = {{-10, -10}, {10, 10}}, rotation = 0)));
+  Modelica.Blocks.Logical.GreaterThreshold greaterThreshold(threshold = 0) annotation(
+        Placement(visible = true, transformation(origin = {-22, -78}, extent = {{-10, -10}, {10, 10}}, rotation = 0)));
+  Modelica.Blocks.Logical.LessThreshold lessThreshold(threshold = 0) annotation(
+        Placement(visible = true, transformation(origin = {-76, 18}, extent = {{10, -10}, {-10, 10}}, rotation = 0)));
+  Modelica.Blocks.MathBoolean.And and11(nu = 2) annotation(
+        Placement(visible = true, transformation(origin = {12, 0}, extent = {{-6, -6}, {6, 6}}, rotation = 0)));
+  Modelica.Blocks.Logical.Switch switch11 annotation(
+        Placement(visible = true, transformation(origin = {50, 0}, extent = {{-10, -10}, {10, 10}}, rotation = 0)));
+  Modelica.Blocks.Logical.GreaterEqualThreshold greaterEqualThreshold(threshold = 0.99) annotation(
+        Placement(visible = true, transformation(origin = {-48, 84}, extent = {{10, -10}, {-10, 10}}, rotation = 0)));
+  Modelica.Blocks.Sources.Constant constZero(k = 0) annotation(
+        Placement(visible = true, transformation(origin = {56, 66}, extent = {{-10, -10}, {10, 10}}, rotation = 180)));
+  equation
+      connect(greaterEqualThreshold.y, and1.u[2]) annotation(
+        Line(points = {{-59, 84}, {-62.5, 84}, {-62.5, 50}, {-58, 50}}, color = {255, 0, 255}));
+  connect(lessEqualThreshold.y, and11.u[1]) annotation(
+        Line(points = {{-11, -42}, {-10.75, -42}, {-10.75, -40}, {-0.5, -40}, {-0.5, 0}, {6, 0}}, color = {255, 0, 255}));
+  connect(greaterThreshold.y, and11.u[2]) annotation(
+        Line(points = {{-11, -78}, {-0.75, -78}, {-0.75, -76}, {-0.5, -76}, {-0.5, 0}, {6, 0}}, color = {255, 0, 255}));
+      connect(lessThreshold.y, and1.u[1]) annotation(
+        Line(points = {{-87, 18}, {-90.5, 18}, {-90.5, 48}, {-90, 48}, {-90, 57}, {-58, 57}, {-58, 50}}, color = {255, 0, 255}));
+      connect(greaterEqualThreshold.u, SoC) annotation(
+        Line(points = {{-36, 84}, {0, 84}, {0, 100}}, color = {0, 0, 127}));
+      connect(current, lessThreshold.u) annotation(
+        Line(points = {{-100, 0}, {-56, 0}, {-56, 18}, {-64, 18}}, color = {0, 0, 127}));
+      connect(and1.y, switch1.u2) annotation(
+        Line(points = {{-46, 50}, {-22, 50}}, color = {255, 0, 255}));
+      connect(constZero.y, switch1.u1) annotation(
+        Line(points = {{46, 66}, {-30, 66}, {-30, 58}, {-22, 58}}, color = {0, 0, 127}));
+      connect(constZero.y, switch11.u1) annotation(
+        Line(points = {{46, 66}, {24, 66}, {24, 8}, {38, 8}}, color = {0, 0, 127}));
+  connect(and11.y, switch11.u2) annotation(
+        Line(points = {{19, 0}, {38, 0}}, color = {255, 0, 255}));
+  connect(lessEqualThreshold.u, SoC) annotation(
+        Line(points = {{-34, -42}, {-36, -42}, {-36, 72}, {0, 72}, {0, 100}}, color = {0, 0, 127}));
+  connect(current, greaterThreshold.u) annotation(
+        Line(points = {{-100, 0}, {-56, 0}, {-56, -78}, {-34, -78}}, color = {0, 0, 127}));
+  connect(current, switch1.u3) annotation(
+        Line(points = {{-100, 0}, {-32, 0}, {-32, 42}, {-22, 42}}, color = {0, 0, 127}));
+  connect(switch1.y, switch11.u3) annotation(
+        Line(points = {{2, 50}, {20, 50}, {20, -8}, {38, -8}}, color = {0, 0, 127}));
+  connect(switch11.y, limited_current) annotation(
+        Line(points = {{62, 0}, {82, 0}, {82, -2}, {110, -2}}, color = {0, 0, 127}));
+    end LimInput;
+  BatteryMPC.BatteryWithFullCycle.LimInput limInput annotation(
+      Placement(visible = true, transformation(origin = {-22, -64}, extent = {{-10, -10}, {10, 10}}, rotation = 0)));
+  Modelica.Blocks.Interfaces.RealInput I_req annotation(
+      Placement(visible = true, transformation(origin = {-84, -64}, extent = {{-20, -20}, {20, 20}}, rotation = 0), iconTransformation(origin = {-84, -64}, extent = {{-20, -20}, {20, 20}}, rotation = 0)));
   equation
     connect(ground.p, theveninBasedBattery.p) annotation(
       Line(points = {{-50, -16}, {-50, 20}, {-10, 20}}, color = {0, 0, 255}));
@@ -571,18 +627,22 @@ package BatteryMPC
       Line(points = {{-10, -16}, {-50, -16}}, color = {0, 0, 255}));
     connect(theveninBasedBattery.n, pulseLoad.p) annotation(
       Line(points = {{10, 20}, {20, 20}, {20, -16}, {10, -16}}, color = {0, 0, 255}));
-    connect(I_req, pulseLoad.i) annotation(
-      Line(points = {{-100, -68}, {0, -68}, {0, -28}}, color = {0, 0, 127}));
     connect(theveninBasedBattery.SoC, SoC) annotation(
       Line(points = {{-6, 30}, {-6, 80}, {-40, 80}, {-40, 110}}, color = {0, 0, 127}));
-    connect(theveninBasedBattery.SoH_diff, SoH_diff) annotation(
+    connect(theveninBasedBattery.SoH, SoH) annotation(
       Line(points = {{4, 30}, {4, 80}, {40, 80}, {40, 110}}, color = {0, 0, 127}));
-  connect(batteryVoltageSensor.v, batteryOutput) annotation(
+    connect(batteryVoltageSensor.v, batteryOutput) annotation(
       Line(points = {{0, 69}, {0, 110}}, color = {0, 0, 127}));
-  connect(batteryVoltageSensor.n, theveninBasedBattery.p) annotation(
+    connect(batteryVoltageSensor.n, theveninBasedBattery.p) annotation(
       Line(points = {{-10, 58}, {-10, 20}}, color = {0, 0, 255}));
-  connect(batteryVoltageSensor.p, theveninBasedBattery.n) annotation(
+    connect(batteryVoltageSensor.p, theveninBasedBattery.n) annotation(
       Line(points = {{10, 58}, {10, 20}}, color = {0, 0, 255}));
+    connect(theveninBasedBattery.SoC, limInput.SoC) annotation(
+      Line(points = {{-6, 30}, {-66, 30}, {-66, -38}, {-22, -38}, {-22, -54}}, color = {0, 0, 127}));
+    connect(limInput.limited_current, pulseLoad.i) annotation(
+      Line(points = {{-10, -64}, {0, -64}, {0, -28}}, color = {0, 0, 127}));
+  connect(I_req, limInput.current) annotation(
+      Line(points = {{-84, -64}, {-32, -64}}, color = {0, 0, 127}));
     annotation(
       uses(Modelica(version = "3.2.3")),
       experiment(StartTime = 0, StopTime = 10000, Tolerance = 1e-6, Interval = 100),
