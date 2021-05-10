@@ -9,12 +9,14 @@ from OMPython import OMCSessionZMQ
 from pyfmi import fmi, load_fmu
 
 from .fmu_source import FmuSource, ModelicaModelInfo
+from .utils import ModelVariables
 
 
 def _generate_control_csv(control_df: pd.DataFrame) -> Path:
-    fd, filepath = tempfile.mkstemp()
-    # filepath = '/home/developer/ipynotebooks/inputs.csv'
+    # fd, filepath = tempfile.mkstemp()
+    filepath = '/home/developer/ipynotebooks/inputs.csv'
     try:
+        # renamer = dict(zip(control_df.columns, map(lambda x: f"'u_{x}'", control_df.columns)))
         control_df.to_csv(filepath, index=False, line_terminator=',\n', sep=',')
     except:
         os.remove(filepath)
@@ -22,24 +24,31 @@ def _generate_control_csv(control_df: pd.DataFrame) -> Path:
     return Path(filepath)
 
 
-def linearize_model(model_info: ModelicaModelInfo, control_df: t.Optional[pd.DataFrame] = None) -> fmi.FMUModelCS2:
+def linearize_model(model_info: ModelicaModelInfo,
+                    initial_parameters: ModelVariables = dict(),
+                    control_df: t.Optional[pd.DataFrame] = None) -> fmi.FMUModelCS2:
     omc = OMCSessionZMQ()
     is_loaded: bool = omc.sendExpression(f'loadFile("{model_info.location}")')
     if not is_loaded:
         raise RuntimeError("Could not load model: ")
-    if control_df is None:
-        linearization_result = omc.sendExpression(
-            f'linearize({model_info.name}, startTime=0, stopTime=0, outputFormat="csv")'
-        )
-    else:
+    stopTime = 100
+    path_to_csv = None
+    if control_df is not None:
         path_to_csv = _generate_control_csv(control_df.reset_index())
         stopTime = control_df.index[-1]
-        linearization_result = omc.sendExpression(
-            f'linearize({model_info.name}, startTime=0, stopTime={stopTime}, simflags="-csvInput {path_to_csv}", outputFormat="csv")'
-        )
+
+    initial_parameters_flags = "".join([f'-override {var}={val}' for var, val in initial_parameters.items()])
+    input_file_flags = f"-csvInput {path_to_csv}" if path_to_csv is not None else ""
+
+    linearization_result = omc.sendExpression(
+        f'linearize({model_info.name}, startTime=0, stopTime={stopTime}, stepSize=10, simflags="{initial_parameters_flags} {input_file_flags}", outputFormat="csv")'
+    )
+
+    if path_to_csv is not None:
         os.remove(path_to_csv)
 
     if linearization_result is None or not len(linearization_result['resultFile']):
+        print(linearization_result)
         raise RuntimeError("Could not linearize a model: ")
 
     fmu_path = FmuSource.from_modelica(
