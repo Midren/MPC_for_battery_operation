@@ -10,13 +10,15 @@ import seaborn as sns
 from pyfmi import fmi, load_fmu
 from pyfmi.common.io import VariableNotFoundError
 from pyfmi.fmi_algorithm_drivers import FMICSAlg, FMIResult
-from scipy.optimize import minimize_scalar
+from scipy.optimize import minimize_scalar, least_squares
 from tqdm import tqdm
 
 from .fmi_cs_alg_progressbar import FMICSAlgWithProgressBar
 from .fmu_source import FmuSource, ModelicaModelInfo
 from .linearization import get_linear_model_matrices, linearize_model
 from .utils import ModelVariables, VariableType
+
+from .battery_model_constants import C_rate_per_second
 
 
 class MPCOptimizer:
@@ -167,7 +169,8 @@ class MPCOptimizer:
             simulation_cache = dict()
 
             def sim_function(u, self):
-                input_df.iloc[(input_df.index >= st) & (input_df.index < st + step)] = u
+                # input_df.iloc[(input_df.index >= st) & (input_df.index < st + step)] = u * C_rate_per_second
+                input_df.iloc[input_df.index >= st] = u * C_rate_per_second
                 self._reset(start=st, control_df=input_df)
                 #                            state=last_state)
                 try:
@@ -177,18 +180,18 @@ class MPCOptimizer:
                                                          verbose=False,
                                                          full_run=False)
                     simulation_cache[u] = (state, input, output)
-                    return objective_func(state, input, output)
+                    return objective_func(step_num, state, input, output)
                 except fmi.FMUException:
                     logging.warn('Simulation failed during opmization')
                     return 1000000000
 
-            optim = minimize_scalar(sim_function,
-                                    bounds=bounds[self.input_vars[0]],
-                                    args=(self),
-                                    method='bounded',
-                                    options={'xatol': 1e-7})
+            optim = least_squares(sim_function,
+                                  bounds=bounds[self.input_vars[0]],
+                                  args=(self),
+                                  method='bounded',
+                                  options={'xatol': 1e-7})
             input_df.iloc[(input_df.index >= st)
-                          & (input_df.index <= min(st + step, end))] = optim.x
+                          & (input_df.index <= min(st + step, end))] = optim.x * C_rate_per_second
 
             self._reset(start=st, control_df=input_df)
             #                            state=last_state)
@@ -197,7 +200,6 @@ class MPCOptimizer:
                                                  input_df,
                                                  verbose=False,
                                                  full_run=False)
-
             for callback in iteration_callbacks:
                 callback(step_num, state)
 

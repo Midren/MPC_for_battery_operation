@@ -11,7 +11,7 @@ import seaborn as sns
 from pyfmi import fmi, load_fmu
 from pyfmi.common.io import VariableNotFoundError
 from pyfmi.fmi_algorithm_drivers import FMICSAlg, FMIResult
-from scipy.optimize import minimize_scalar
+from scipy.optimize import least_squares
 from tqdm import tqdm
 
 from .fmi_cs_alg_progressbar import FMICSAlgWithProgressBar
@@ -149,7 +149,7 @@ class MPCOptimizerWithLinearization:
             simulation_cache = dict()
 
             def sim_function(u, self, last_state):
-                input_df.iloc[(input_df.index >= st) & (input_df.index < st + step)] = u
+                input_df.iloc[input_df.index >= st] = u
                 linear_input_df = MPCOptimizerWithLinearization._prepare_input_for_linear(
                     input_df, st, st + step * self.horizon)
                 self._reset()
@@ -159,18 +159,15 @@ class MPCOptimizerWithLinearization:
                                                          linear_input_df,
                                                          verbose=False)
                     simulation_cache[u] = (state, input, output)
-                    J = objective_func(state, input, output)
-                    print(u, J)
+                    J = objective_func(step_num, state, input, output)
                     return J
                 except fmi.FMUException:
                     return 1000000000
 
-            optim = minimize_scalar(sim_function,
-                                    bounds=bounds[self.input_vars[0][3:-1]],
-                                    args=(self, last_state),
-                                    method='bounded',
-                                    options={'xatol': 1e-7})
-            print(optim)
+            optim = least_squares(sim_function,
+                                  bounds=bounds[self.input_vars[0][3:-1]],
+                                  args=(self, last_state),
+                                  method='trf')
             input_df.iloc[(input_df.index >= st)
                           & (input_df.index <= min(st + step, end))] = optim.x
 
@@ -188,9 +185,9 @@ class MPCOptimizerWithLinearization:
                 callback(step_num, all_variables)
 
             last_state = dict(zip(all_variables.iloc[-1].index, all_variables.iloc[-1].values))
-            for var in self.d:
-                self.d[var] = last_state[var[3:-1]]
-            print(self.d)
+            # for var in self.d:
+                # self.d[var] = last_state[var[3:-1]]
+            # print(self.d)
 
             if any([func(step_num, last_state) for func in early_stopping_funcs]):
                 logging.info('Stopped optimization due to early stopping')
