@@ -29,7 +29,6 @@ class MPCOptimizer:
                  state_variables: t.List[str],
                  input_vec: t.List[str],
                  output_vec: t.List[str],
-                 horizon_num: int,
                  fmu_path: t.Optional[FmuSource] = None,
                  initial_parameters: t.Dict[str, t.Any] = dict(),
                  points_per_sec: float = 1):
@@ -63,7 +62,6 @@ class MPCOptimizer:
         ]
         self.input_vars: t.List[str] = input_vec
         self.output_vars: t.List[str] = output_vec
-        self.horizon: int = horizon_num
         self.points_per_sec = points_per_sec
 
         all_parameters = list(self.model.get_model_variables(variability=1, filter='[!_]*').keys())
@@ -167,11 +165,13 @@ class MPCOptimizer:
     def optimize(self,
                  start: float,
                  end: float,
+                 control_horizon: int,
                  initial_guess: pd.DataFrame,
                  objective_func: t.Callable[[ModelVariables, ModelVariables, ModelVariables],
                                             float],
                  bounds: t.Dict[str, t.Tuple[float, float]] = {},
                  constraints: t.List[StateConstraint] = [],
+                 simulate_horizon: t.Optional[int] = None,
                  step: float = 1,
                  iteration_callbacks: t.List[t.Callable[[int, pd.DataFrame], None]] = [],
                  early_stopping_funcs: t.List[t.Callable[[int, ModelVariables], bool]] = []):
@@ -183,17 +183,24 @@ class MPCOptimizer:
             for cons in constraints
         ]
 
+        if simulate_horizon is None:
+            simulate_horizon = control_horizon
+
         for step_num, st in enumerate(tqdm(np.arange(start, end, step))):
             simulation_cache: t.Dict[float, t.Tuple[ModelVariables, ModelVariables,
                                                     ModelVariables]] = dict()
 
             def simulate_control_horizon(u):
+                u = tuple(u)
                 if u not in simulation_cache:
                     # input_df.iloc[input_df.index >= st] = u  # * C_rate_per_second
-                    input_df.iloc[(input_df.index >= st) & (input_df.index < st + step)] = u# * C_rate_per_second
+                    for k, u_step in enumerate(u):
+                        input_df.iloc[(input_df.index >= st + k * step)
+                                      & (input_df.index < st +
+                                         (k + 1) * step)] = u_step  # * C_rate_per_second
                     self._reset(start=st, control_df=input_df)
                     return self.simulate(st,
-                                         st + step * self.horizon,
+                                         st + step * simulate_horizon,
                                          input_df,
                                          verbose=False,
                                          full_run=False)
@@ -202,23 +209,22 @@ class MPCOptimizer:
                     return simulation_cache[u]
 
             def sim_function(u, self):
-                u = u[0]
                 try:
                     state, input, output = simulate_control_horizon(u)
                     return objective_func(step_num, state, input, output)
                 except fmi.FMUException:
-                    logging.warn(f'Simulation failed during opmization with input: {u}')
+                    logging.warn(f'Simulation failed during opmization with inputs: {u}')
                     return 1000000000000
 
             def get_last_value(var: str, u):
-                states, inputs, outputs = simulate_control_horizon(u[0])
+                states, inputs, outputs = simulate_control_horizon(u)
                 return outputs[var].values[-1]
 
             optim = minimize(
                 sim_function,
-                x0=np.zeros(shape=(1)),
+                x0=np.zeros(shape=(control_horizon)),
                 method='SLSQP',
-                bounds=bounds.values(),
+                bounds=list(bounds.values())*control_horizon,
                 args=(self),
                 constraints=scipy_constraints,
                 # callback=lambda x, y: logging.info(f'{y.keys()}')
