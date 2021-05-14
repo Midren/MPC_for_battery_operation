@@ -1,5 +1,6 @@
 import logging
 import typing as t
+from collections import namedtuple
 from itertools import chain
 from pathlib import Path
 
@@ -10,15 +11,16 @@ import seaborn as sns
 from pyfmi import fmi, load_fmu
 from pyfmi.common.io import VariableNotFoundError
 from pyfmi.fmi_algorithm_drivers import FMICSAlg, FMIResult
-from scipy.optimize import minimize_scalar, least_squares
+from scipy.optimize import (NonlinearConstraint, least_squares, minimize, minimize_scalar)
 from tqdm import tqdm
 
+from .battery_model_constants import C_rate_per_second
 from .fmi_cs_alg_progressbar import FMICSAlgWithProgressBar
 from .fmu_source import FmuSource, ModelicaModelInfo
 from .linearization import get_linear_model_matrices, linearize_model
 from .utils import ModelVariables, VariableType
 
-from .battery_model_constants import C_rate_per_second
+StateConstraint = namedtuple('StateConstraint', ['var', 'lb', 'ub'])
 
 
 class MPCOptimizer:
@@ -70,7 +72,10 @@ class MPCOptimizer:
                 raise ValueError("Variable is not model parameter:", param)
         self.initial_parameters = initial_parameters
 
-        self.initial_state = {var: self.model.get(var) if var != 'time' else -1 for var in chain(self.state_variables, self.input_vars, self.output_vars)}
+        self.initial_state = {
+            var: self.model.get(var) if var != 'time' else -1
+            for var in chain(self.state_variables, self.input_vars, self.output_vars)
+        }
 
     def simulate(self,
                  start: float,
@@ -86,16 +91,19 @@ class MPCOptimizer:
             opts['ncp'] = int((end - start) * self.points_per_sec)
         opts['initialize'] = False
         opts['silent_mode'] = True
+
         # opts["logging"] = True
 
         def find_index(timepoint):
             return np.argmin(np.abs(input_df.index - timepoint))
 
-        res = self.model.simulate(start_time=start,
-                                  final_time=end,
-                                  input=(self.input_vars, input_df.reset_index().values[find_index(start):find_index(end)]),
-                                  options=opts,
-                                  algorithm=FMICSAlgWithProgressBar if verbose else FMICSAlg)
+        res = self.model.simulate(
+            start_time=start,
+            final_time=end,
+            input=(self.input_vars,
+                   input_df.reset_index().values[find_index(start):find_index(end)]),
+            options=opts,
+            algorithm=FMICSAlgWithProgressBar if verbose else FMICSAlg)
 
         def is_variable(var):
             try:
@@ -150,7 +158,11 @@ class MPCOptimizer:
             self.model.initialize()
 
             if start > 0:
-                self.simulate(start=0, end=start, input_df=control_df, verbose=False, full_run=False)
+                self.simulate(start=0,
+                              end=start,
+                              input_df=control_df,
+                              verbose=False,
+                              full_run=False)
 
     def optimize(self,
                  start: float,
@@ -159,42 +171,64 @@ class MPCOptimizer:
                  objective_func: t.Callable[[ModelVariables, ModelVariables, ModelVariables],
                                             float],
                  bounds: t.Dict[str, t.Tuple[float, float]] = {},
+                 constraints: t.List[StateConstraint] = [],
                  step: float = 1,
                  iteration_callbacks: t.List[t.Callable[[int, pd.DataFrame], None]] = [],
                  early_stopping_funcs: t.List[t.Callable[[int, ModelVariables], bool]] = []):
         last_state: ModelVariables
         input_df = initial_guess.copy()
 
+        scipy_constraints = [
+            NonlinearConstraint(lambda u: get_last_value(cons.var, u), cons.lb, cons.ub)
+            for cons in constraints
+        ]
+
         for step_num, st in enumerate(tqdm(np.arange(start, end, step))):
-            simulation_cache = dict()
+            simulation_cache: t.Dict[float, t.Tuple[ModelVariables, ModelVariables,
+                                                    ModelVariables]] = dict()
+
+            def simulate_control_horizon(u):
+                if u not in simulation_cache:
+                    # input_df.iloc[input_df.index >= st] = u  # * C_rate_per_second
+                    input_df.iloc[(input_df.index >= st) & (input_df.index < st + step)] = u# * C_rate_per_second
+                    self._reset(start=st, control_df=input_df)
+                    return self.simulate(st,
+                                         st + step * self.horizon,
+                                         input_df,
+                                         verbose=False,
+                                         full_run=False)
+                    simulation_cache[u] = (state, input, output)
+                else:
+                    return simulation_cache[u]
 
             def sim_function(u, self):
-                # input_df.iloc[(input_df.index >= st) & (input_df.index < st + step)] = u * C_rate_per_second
-                input_df.iloc[input_df.index >= st] = u * C_rate_per_second
-                self._reset(start=st, control_df=input_df)
-                #                            state=last_state)
+                u = u[0]
                 try:
-                    state, input, output = self.simulate(st,
-                                                         st + step * self.horizon,
-                                                         input_df,
-                                                         verbose=False,
-                                                         full_run=False)
-                    simulation_cache[u] = (state, input, output)
+                    state, input, output = simulate_control_horizon(u)
                     return objective_func(step_num, state, input, output)
                 except fmi.FMUException:
-                    logging.warn('Simulation failed during opmization')
-                    return 1000000000
+                    logging.warn(f'Simulation failed during opmization with input: {u}')
+                    return 1000000000000
 
-            optim = least_squares(sim_function,
-                                  bounds=bounds[self.input_vars[0]],
-                                  args=(self),
-                                  method='bounded',
-                                  options={'xatol': 1e-7})
+            def get_last_value(var: str, u):
+                states, inputs, outputs = simulate_control_horizon(u[0])
+                return outputs[var].values[-1]
+
+            optim = minimize(
+                sim_function,
+                x0=np.zeros(shape=(1)),
+                method='SLSQP',
+                bounds=bounds.values(),
+                args=(self),
+                constraints=scipy_constraints,
+                # callback=lambda x, y: logging.info(f'{y.keys()}')
+            )
             input_df.iloc[(input_df.index >= st)
-                          & (input_df.index <= min(st + step, end))] = optim.x * C_rate_per_second
+                          & (input_df.index <= min(st + step, end))] = optim.x[
+                              0]  # * C_rate_per_second
 
             self._reset(start=st, control_df=input_df)
-            #                            state=last_state)
+
             state, input, output = self.simulate(st,
                                                  min(st + step, end),
                                                  input_df,
