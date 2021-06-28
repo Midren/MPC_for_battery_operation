@@ -3,6 +3,7 @@ import typing as t
 from collections import namedtuple
 from itertools import chain
 from pathlib import Path
+from time import time
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -166,16 +167,17 @@ class MPCOptimizer:
                  start: float,
                  end: float,
                  control_horizon: int,
-                 initial_guess: pd.DataFrame,
                  objective_func: t.Callable[[ModelVariables, ModelVariables, ModelVariables],
                                             float],
+                 initial_guess: t.Optional[pd.DataFrame],
                  bounds: t.Dict[str, t.Tuple[float, float]] = {},
                  constraints: t.List[StateConstraint] = [],
                  simulate_horizon: t.Optional[int] = None,
                  step: float = 1,
                  iteration_callbacks: t.List[t.Callable[[int, pd.DataFrame], None]] = [],
                  early_stopping_funcs: t.List[t.Callable[[int, ModelVariables], bool]] = []):
-        last_state: ModelVariables
+        last_state: t.Optional[ModelVariables] = None
+        next_x0: t.Optional[np.array] = None
         input_df = initial_guess.copy()
 
         scipy_constraints = [
@@ -187,66 +189,85 @@ class MPCOptimizer:
             simulate_horizon = control_horizon
 
         for step_num, st in enumerate(tqdm(np.arange(start, end, step))):
-            simulation_cache: t.Dict[float, t.Tuple[ModelVariables, ModelVariables,
-                                                    ModelVariables]] = dict()
+            try:
+                simulation_cache: t.Dict[float, t.Tuple[ModelVariables, ModelVariables,
+                                                        ModelVariables]] = dict()
 
-            def simulate_control_horizon(u):
-                u = tuple(u)
-                if u not in simulation_cache:
-                    # input_df.iloc[input_df.index >= st] = u  # * C_rate_per_second
-                    for k, u_step in enumerate(u):
-                        input_df.iloc[(input_df.index >= st + k * step)
-                                      & (input_df.index < st +
-                                         (k + 1) * step)] = u_step  # * C_rate_per_second
-                    self._reset(start=st, control_df=input_df)
-                    return self.simulate(st,
-                                         st + step * simulate_horizon,
-                                         input_df,
-                                         verbose=False,
-                                         full_run=False)
-                    simulation_cache[u] = (state, input, output)
-                else:
-                    return simulation_cache[u]
+                def simulate_control_horizon(u):
+                    u = tuple(u)
+                    if u not in simulation_cache:
+                        # input_df.iloc[input_df.index >= st] = u  # * C_rate_per_second
+                        for k, u_step in enumerate(u):
+                            input_df.iloc[(input_df.index >= st + k * step)
+                                          & (input_df.index < st +
+                                             (k + 1) * step)] = u_step  # * C_rate_per_second
+                        self._reset(start=st, control_df=input_df)
+                        state, input, output = self.simulate(st,
+                                                             st + step * simulate_horizon,
+                                                             input_df,
+                                                             verbose=False,
+                                                             full_run=False)
+                        simulation_cache[u] = (state, input, output)
+                        return state, input, output
+                    else:
+                        return simulation_cache[u]
 
-            def sim_function(u, self):
-                try:
-                    state, input, output = simulate_control_horizon(u)
-                    return objective_func(step_num, state, input, output)
-                except fmi.FMUException:
-                    logging.warn(f'Simulation failed during opmization with inputs: {u}')
-                    return 1000000000000
+                def sim_function(u, self):
+                    try:
+                        state, input, output = simulate_control_horizon(u)
+                        J = objective_func(step_num, state, input, output)
+                        logging.info(f'{u}, {J}')
+                        return J
+                    except fmi.FMUException:
+                        logging.warn(f'Simulation failed during opmization with inputs: {u}')
+                        return 1000000000000
 
-            def get_last_value(var: str, u):
-                states, inputs, outputs = simulate_control_horizon(u)
-                return outputs[var].values[-1]
+                def get_last_value(var: str, u):
+                    try:
+                        states, inputs, outputs = simulate_control_horizon(u)
+                        val = outputs[var].values[-1]
+                    except fmi.FMUException:
+                        logging.warn(f'Simulation failed during opmization with inputs: {u}')
+                        return np.nan
+                    return val
 
-            optim = minimize(
-                sim_function,
-                x0=np.zeros(shape=(control_horizon)),
-                method='SLSQP',
-                bounds=list(bounds.values())*control_horizon,
-                args=(self),
-                constraints=scipy_constraints,
-                # callback=lambda x, y: logging.info(f'{y.keys()}')
-            )
-            input_df.iloc[(input_df.index >= st)
-                          & (input_df.index <= min(st + step, end))] = optim.x[
-                              0]  # * C_rate_per_second
+                optim = minimize(sim_function,
+                                 # x0=np.zeros(shape=(control_horizon)) if last_state is not None and last_state['SoC'] > 0.7 else np.ones(shape=(control_horizon)) * -9.8 * 6.94e-06,
+                                 x0=np.zeros(shape=(control_horizon)) if next_x0 is None else next_x0,
+                                 method='SLSQP',
+                                 bounds=list(bounds.values()) * control_horizon,
+                                 args=(self),
+                                 constraints=scipy_constraints,
+                                 options={
+                                     'maxiter': 30,
+                                     'ftol': 1e-05
+                                 }
+                                 # callback=lambda x, y: logging.info(f'{y.keys()}')
+                                 )
+                print(optim)
+                next_x0 = np.roll(optim.x, -1)
+                next_x0[control_horizon - 1] = 0
+                input_df.iloc[(input_df.index >= st)
+                              & (input_df.index <= min(st + step, end))] = optim.x[
+                                  0]  # * C_rate_per_second
 
-            self._reset(start=st, control_df=input_df)
+                self._reset(start=st, control_df=input_df)
 
-            state, input, output = self.simulate(st,
-                                                 min(st + step, end),
-                                                 input_df,
-                                                 verbose=False,
-                                                 full_run=False)
-            for callback in iteration_callbacks:
-                callback(step_num, state)
+                state, input, output = self.simulate(st,
+                                                     min(st + step, end),
+                                                     input_df,
+                                                     verbose=False,
+                                                     full_run=False)
+                for callback in iteration_callbacks:
+                    callback(step_num, state)
 
-            last_state = dict(zip(state.iloc[-1].index, state.iloc[-1].values))
+                last_state = dict(zip(state.iloc[-1].index, state.iloc[-1].values))
 
-            if any([func(step_num, last_state) for func in early_stopping_funcs]):
-                logging.info('Stopped optimization due to early stopping')
+                if any([func(step_num, last_state) for func in early_stopping_funcs]):
+                    logging.info('Stopped optimization due to early stopping')
+                    return input_df[:np.argmin(np.abs(input_df.index - (st + step)))]
+            except:
+                logging.error("Something really terrible happened during optimization. Returning last optimized input")
                 return input_df[:np.argmin(np.abs(input_df.index - (st + step)))]
 
         return input_df[:np.argmin(np.abs(input_df.index - (st + step)))]
