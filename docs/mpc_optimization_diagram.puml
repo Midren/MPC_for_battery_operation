@@ -1,0 +1,64 @@
+@startuml
+skinparam monochrome true
+skinparam classFontSize 15
+skinparam defaultFontSize 14
+
+class ModelVariables {
+    Any operator[](var_name: str)
+}
+
+class SimulationResult {
+    ModelVariables operator[](time: int)
+}
+
+class StateConstraint {
+    str variable
+    float lower_bound
+    float upper_bound
+}
+
+class ObjectiveFunc {
+    float **cost**(state: SimulationResult, input: SimulationResult, output: SimulationResult)
+}
+
+class IterationCallback {
+    void **run**(iter_num: int, res: SimulationResult)    
+}
+
+class ModelicaModelInfo {
+    file_location: Path
+    model_name: str
+}
+
+class FmuSource {
+    **from_modelica**(model_info: ModelicaModelInfo)
+    **from_fmu**(fmu_path: Path)
+}
+
+FmuSource *-left- ModelicaModelInfo
+
+class AbstractMPCOptimizer {
+    void **__init__**(fmu: FmuSource, initial_parameters: ModelVariables, state_vars: List[str], input_vars: List[str], output_vars: List[str], points_per_sec: float)
+    SimulationResult **simulate**(start: float, end: float, input: DataFrame)
+    void **_reset**(start: float, state: Optional[ModelVariables], input: Optional[DataFrame])
+    DataFrame **optimize**(start: float, end: float, step: float, control_horizon: int, simulate_horizon: int, constraints: List[StateConstraint])
+}
+
+AbstractMPCOptimizer o-up- FmuSource
+AbstractMPCOptimizer *-left- StateConstraint
+AbstractMPCOptimizer *-left- ObjectiveFunc
+AbstractMPCOptimizer *-left- IterationCallback
+
+ObjectiveFunc -[hidden]down-> StateConstraint
+IterationCallback -[hidden]down-> ObjectiveFunc
+
+class MPCOptimizer {
+
+}
+
+class MPCOptimizerWithLinearization {
+    void **_linearize_model**(model, initial_parameters: ModelVariables, input: DataFrame)
+}
+AbstractMPCOptimizer <|-down- MPCOptimizer
+AbstractMPCOptimizer <|-down- MPCOptimizerWithLinearization
+@enduml
