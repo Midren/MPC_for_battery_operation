@@ -42,11 +42,14 @@ success
 __pycache__/
 *.py[cod]
 *$py.class
+*.egg-info
 .env
 .venv
 env/
 venv/
 .ropeproject
+.mypy_cache/
+.neptune
 
 # editor related
 .vscode
