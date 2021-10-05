@@ -3,6 +3,7 @@ from pathlib import Path
 import tempfile
 import os
 import shutil
+from enum import Enum, auto
 
 from OMPython import ModelicaSystem
 
@@ -12,13 +13,23 @@ class ModelicaModelInfo:
     location: Path
     name: str
 
+class FmuType(Enum):
+    CoSimulation  = auto()
+    ModelExchange = auto()
+
+    def __str__(self):
+        if self.value == FmuType.CoSimulation.value:
+            return 'cs'
+        elif self.value == FmuType.ModelExchange.value:
+            return 'me'
+
 
 class FmuSource:
     def __init__(self, fmu_path):
         self.fmu_path: Path = fmu_path
 
     @classmethod
-    def from_modelica(cls, model_info: ModelicaModelInfo):
+    def from_modelica(cls, model_info: ModelicaModelInfo, fmu_type: FmuType = FmuType.ModelExchange):
         if not model_info.location.exists():
             raise ValueError('No such file: ' + str(model_info.location))
         cwd = os.getcwd()
@@ -26,10 +37,10 @@ class FmuSource:
             os.chdir(temp_dir)
             modelica_model = ModelicaSystem(str(model_info.location),
                                             model_info.name, ["Modelica"],
-                                            commandLineOptions="--fmiFlags=s:cvode -d=initialization")
+                                            commandLineOptions="--fmiFlags=s:cvode -d=initialization -d=-disableDirectionalDerivatives")
             modelica_model.setSimulationOptions(["startTime=0", "stopTime=0"])
             modelica_model.simulate()
-            fmu_path = modelica_model.convertMo2Fmu(fmuType='me')
+            fmu_path = modelica_model.convertMo2Fmu(fmuType=str(fmu_type))
             if len(fmu_path) == 0:
                 raise RuntimeError("Couldn't compile FMU")
             new_loc = Path(cwd)/Path(fmu_path).name

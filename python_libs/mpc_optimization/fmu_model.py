@@ -1,21 +1,37 @@
 import typing as t
 from pathlib import Path
 import itertools
+import time
 
 import pandas as pd
 import numpy as np
 from pyfmi import fmi, FMUModelME2, load_fmu
+from pyfmi.fmi_algorithm_drivers import FMICSAlg, FMIResult
 from scipy.integrate import solve_ivp
 
+from mpc_optimization.fmi_cs_alg_progressbar import FMICSAlgWithProgressBar
 from mpc_optimization.utils import ModelVariables
-from mpc_optimization.fmu_source import FmuSource
+from mpc_optimization.fmu_source import FmuSource, FmuType
+
+from time import perf_counter
+from contextlib import contextmanager
+
+@contextmanager
+def catchtime() -> float:
+    start = perf_counter()
+    yield lambda: perf_counter() - start
 
 
 class Fmu:
-    def __init__(self, fmu_source: FmuSource, initial_parameters: ModelVariables = dict()):
+    def __init__(self, fmu_source: FmuSource, initial_parameters: ModelVariables = dict(), verbose: bool = False):
         self.model: FMUModelME2 = load_fmu(str(fmu_source.fmu_path), log_level=4)
         self.model.set_max_log_size(2073741824)  # = 2*1024^3 (about 2GB)
         self.initial_params = initial_parameters
+        self.verbose = verbose
+
+        self.input_names = list(self.model.get_model_variables(causality=fmi.FMI2_INPUT, include_alias=False).keys())
+        self.state_names = list(self.model.get_model_variables(causality=fmi.FMI2_LOCAL, include_alias=False).keys())
+        self.output_names = list(self.model.get_model_variables(causality=fmi.FMI2_OUTPUT, include_alias=False).keys())
 
         self.reset(0)
 
@@ -58,9 +74,6 @@ class FmuME(Fmu):
 
         self.model.enter_continuous_time_mode()
 
-        self.input_names = list(self.model.get_model_variables(causality=fmi.FMI2_INPUT, include_alias=False).keys())
-        self.state_names = list(self.model.get_model_variables(causality=fmi.FMI2_LOCAL, include_alias=False).keys())
-        self.output_names = list(self.model.get_model_variables(causality=fmi.FMI2_OUTPUT, include_alias=False).keys())
         self.model_vars_idx = np.array([self.model.get_variable_valueref(k) for k in itertools.chain(self.input_names, self.state_names, self.output_names)])
 
     def _simulate(self, start_time, final_time, points_num):
@@ -122,18 +135,37 @@ class FmuCS(Fmu):
         # Currently after re-setting state variables
         # model simulate doesn't show the same behavior
         if start > 0:
-            self.model.simulate(start=0, end=start, input_df=control_df, verbose=False, full_run=False)
+            if control_df is None:
+                raise RuntimeError("No input for simulation")
+
+            def find_index(timepoint):
+                return np.argmin(np.abs(control_df.index - timepoint))
+
+            self.simulate(start_time=0,
+                                final_time=start,
+                                input=(self.input_names, control_df.reset_index().values[find_index(0):find_index(start)]))
+
+    def form_res(self, states: FMIResult):
+        return {name: states[name] for name in itertools.chain(self.input_names, self.state_names, self.output_names)}
+
+    def simulate(self, start_time, final_time, input, options=None):
+        res = self.model.simulate(start_time=start_time,
+                                  final_time=final_time,
+                                  input=input,
+                                  options=options,
+                                  algorithm=FMICSAlgWithProgressBar if self.verbose else FMICSAlg)
+        return self.form_res(res)
 
 
 if __name__ == "__main__":
     from mpc_optimization.fmu_source import ModelicaModelInfo
     source = FmuSource.from_modelica(
-        ModelicaModelInfo(Path('/home/developer/modelica/BatteryWithFullCycle.mo'), 'BatteryMPC.BatteryWithFullCycle'))
-    model = FmuME(source)
+        ModelicaModelInfo(Path('/home/developer/modelica/BatteryWithFullCycle.mo'), 'BatteryMPC.BatteryWithFullCycle'), FmuType.CoSimulation)
+    model = FmuCS(source)
 
     start_time = 0
     final_time = 30 * 60
-    control_df = pd.DataFrame({"Time": range(start_time, final_time)})
+    control_df = pd.DataFrame({"Time": [start_time]})
     control_df['I_req'] = -1e-4
     control_df.set_index('Time', inplace=True)
 
@@ -142,5 +174,7 @@ if __name__ == "__main__":
 
     input = (['I_req'], control_df.reset_index().values[find_index(start_time):find_index(final_time)+1])
 
-    states = model.simulate(start_time, final_time, input=input, options={'ncp': 100})
+    with catchtime() as t:
+        states = model.simulate(start_time, final_time, input=input, options={'ncp': 100})
+    print(f"Simulation time: {t():.4f} secs")
     print(states)
