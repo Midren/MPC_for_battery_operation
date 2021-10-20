@@ -51,7 +51,7 @@ RUN jupyter nbextension enable code_prettify/autopep8
 RUN jupyter nbextension enable collapsible_headings/main
 RUN jt -tf source -nf ptsans -nfs 10 -ofs 10 -fs 10 -tfs 10 #-t gruvboxd --vim
 
-RUN conda install altair vega autopep8 seaborn pytorch pytorch-lightning statsmodels keras
+RUN conda install altair vega autopep8 seaborn pytorch pytorch-lightning statsmodels keras neptune-client
 RUN conda init bash 
 
 RUN mkdir /home/developer/ipynotebooks && \
@@ -72,7 +72,3 @@ RUN pip3 install ompython
 
 ENV USER developer
 ENV DISPLAY :0.0
-
-USER developer
-
-#ENTRYPOINT sudo -S service ssh restart && bash

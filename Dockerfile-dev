@@ -1,0 +1,63 @@
+FROM jmodelica:base
+
+USER root
+
+RUN apt-get update -y \
+  && apt install -y ca-certificates
+
+# add newer npm
+RUN curl -sL https://deb.nodesource.com/setup_16.x -o nodesource_setup.sh \
+  && chmod +x nodesource_setup.sh \
+  && ./nodesource_setup.sh
+
+RUN apt-get update -y \
+  && apt-get install -y software-properties-common \
+  && add-apt-repository -y ppa:neovim-ppa/unstable \
+  && apt-get update -y \
+  && apt-get install -y sudo git lua5.1 python3-dev cmake nodejs locales \
+  && apt-get install -y silversearcher-ag global clang-format ctags neovim zsh tmux \
+  && apt upgrade -y \
+  && apt-get clean
+
+# install ripgrep
+RUN curl -LO https://github.com/BurntSushi/ripgrep/releases/download/12.1.1/ripgrep_12.1.1_amd64.deb \
+  && sudo dpkg -i ripgrep_12.1.1_amd64.deb
+
+RUN pip3 install pynvim ranger-fm trash-cli
+RUN npm install -g fixjson neovim jsonlint prettier
+
+RUN chsh -s /bin/zsh
+
+# set locale to support agnoster
+RUN locale-gen en_US.UTF-8
+
+RUN apt update \
+  && apt install -y build-essential autoconf automake pkg-config libevent-dev libncurses5-dev bison byacc \
+  && rm -rf /tmp/tmux \
+  && git clone https://github.com/tmux/tmux.git /tmp/tmux \
+  && cd /tmp/tmux \
+  && git checkout 3.2 \
+  && sh autogen.sh \
+  && ./configure && make \
+  && make install
+
+USER developer
+
+RUN git clone --depth 1 https://github.com/junegunn/fzf.git ~/.fzf \
+  && ~/.fzf/install --bin \
+  && mkdir -p ~/.local/bin \
+  && mv ~/.fzf/bin/fzf ~/.local/bin/
+
+ADD "https://www.random.org/cgi-bin/randbyte?nbytes=10&format=h" skipcache
+RUN git clone https://github.com/Midren/dotfiles ~/.dotfiles && \
+        ~/.dotfiles/install-profile ubuntu-cli
+
+WORKDIR /home/developer/.dotfiles
+
+ADD "https://www.random.org/cgi-bin/randbyte?nbytes=10&format=h" skipcache
+RUN git config --global user.email "you@example.com" && \
+    git config --global user.name "Your Name"
+RUN git pull -f && \
+    /home/developer/.dotfiles/install-profile ubuntu-cli
+
+ENTRYPOINT sudo -S service ssh restart && zsh
