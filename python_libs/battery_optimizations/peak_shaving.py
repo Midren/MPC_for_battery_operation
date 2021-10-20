@@ -1,75 +1,51 @@
-import traceback
-import logging
-import typing as t
-
-import os
-import shutil
-import matplotlib.pyplot as plt
-
+from functools import partial
+import itertools
 from pathlib import Path
+import math
 
-import pandas as pd
 import numpy as np
-import altair as alt
-import seaborn as sns
+import pandas as pd
+import datetime
+import matplotlib.pyplot as plt
+import neptune.new as neptune
 
-logger = logging.getLogger()
-logger.setLevel(logging.INFO)
+from battery_optimizations.date_splitting import get_day_load, get_interval_load
+from battery_optimizations.reference_signal import calculate_ref_load
 
-alt.data_transformers.disable_max_rows()
-sns.set_theme()
+from mpc_optimization.battery_model_constants import Battery_state_vars, State_vars_aliases_dict, C_rate_per_second
+from mpc_optimization.fmu_source import FmuSource, ModelicaModelInfo
+from mpc_optimization.mpc_optimizer import MPCOptimizer, ModelVariables, StateConstraint
 
-start_date: t.Final[str] = '2017-11-06'
-
-
-def get_load_n_days(load_path: Path, n: int = 1):
-    if n > 25:
-        raise ValueError('max 25 days')
-    df = pd.read_csv(load_path, parse_dates=['cet_cest_timestamp'])
+def get_load_df() -> pd.DataFrame:
+    df = pd.read_csv('~/ipynotebooks/data/sweden_load_2005_2017.csv', parse_dates=['cet_cest_timestamp'])
     df['cet_cest_timestamp'] = df['cet_cest_timestamp'].apply(lambda x: x.replace(tzinfo=None))
+    df = df.rename({'cet_cest_timestamp': 'time', 'SE_load_actual_tso': 'load'}, axis=1)
+    df = df.set_index('time')
+    df = df.loc[~df.index.duplicated(keep='first')]
+    return df
 
-    df_tmp = df.loc[(df['cet_cest_timestamp'] >= pd.to_datetime(start_date))
-            & (df['cet_cest_timestamp'] < pd.to_datetime(f'{start_date[:3]}-{6+n:02}'))].rename(columns={
-                        "cet_cest_timestamp": 'time',
-                        'SE_load_actual_tso': 'load'
-                    }).set_index('time')
+def show_week_interval(df):
+    load = get_interval_load(df, datetime.date(2005, 4, 20), datetime.date(2005, 4, 27))
+    plt.plot(load)
+    base = datetime.date(2005, 4, 20)
+    for x in [base + datetime.timedelta(days=x) for x in range(7)]:
+        plt.axvline(x, color='grey')
+    plt.show()
 
-    week_load = df_tmp.resample('10S').asfreq().interpolate()
+def get_power_load(load_df, time: int):
+    # start_date = get_day_load(load_df, datetime.date(2017, 11, 6)).iloc[0].name
+    # start_date = pd.to_datetime('2017-11-06 00:00:00')
+    start_date = load_df.iloc[0].name
+    time = start_date + pd.to_timedelta(time, 's')
+    return load_df.iloc[load_df.index.get_loc(time, method='pad')].values[0]
 
-    return week_load
+def get_per_mw_price(load_df, time: int):
+    pload = get_power_load(load_df, time)
+    return 5 + 0.5 * pload + 0.05*pload**2
 
-def get_discharging_charging_bounds(load, charging_percentile, discharging_percentile):
-    discharging_bound = np.percentile(load.load, q=discharging_percentile, interpolation='linear')
-    charging_bound = np.percentile(load.load, q=charging_percentile, interpolation='linear')
-    return discharging_bound, charging_bound
-
-def get_expected_load(load, charging_percentile, discharging_percentile):
-    discharging_bound, charging_bound = get_discharging_charging_bounds(load, charging_percentile, discharging_percentile)
-    expected_week_load  = load.copy()
-    expected_week_load.load = np.minimum(expected_week_load, discharging_bound)
-    expected_week_load.load = np.maximum(expected_week_load, charging_bound)
-    return expected_week_load
-
-def visualize_load(load):
-    return alt.Chart(load.reset_index()).encode(
-        x='time:T',
-        y='load:Q'
-    ).mark_line()
-
-def visualize_charging_discharging(load, charging_percentile, discharging_percentile):
-    def red_line_chart(y):
-        return alt.Chart(pd.DataFrame({'y': [y]})).encode(y='y:Q').mark_rule(color='red')
-
-    # base_load = load.min().values[0]
-    discharging_bound, charging_bound = get_discharging_charging_bounds(load, charging_percentile, discharging_percentile)
-
-    return alt.Chart(load.reset_index()).encode(x='time:T',
-                                                y='load:Q').mark_line() + \
-            red_line_chart(charging_bound) + red_line_chart(discharging_bound)
-
-sweden_load_path = Path('../ipynotebooks/data/sweden_load_2005_2017.csv')
-day_load = get_load_n_days(sweden_load_path, 1)
-week_load = get_load_n_days(sweden_load_path, 7)
+def get_energy_mwh_required(load_df, time: int):
+    pload = get_power_load(load_df, time)
+    return pload*step/1000/3600
 
 num_of_batteries = 40
 
@@ -82,22 +58,128 @@ max_charging_ah = max_charging_wh/nominal_v
 
 c_rate_num = max_charging_ah/capacity_ah
 
-# step = 10
-# load_df = df_tmp.resample(f'{step}S').asfreq().interpolate()
-load_df = week_load
-
-def get_power_load(load, time: int):
-    start_time = pd.to_datetime(f'{start_date} 00:00:00')
-    time = start_time + pd.to_timedelta(time, 's')
-    return load_df.iloc[load_df.index.get_loc(time, method='nearest')].values[0]
-
-def get_per_mw_price(load, time: int):
-    pload = get_power_load(load, time)
-    return 5 + 0.5 * pload + 0.05*pload**2
-
-def get_energy_mwh_required(load, time: int, step: int):
-    pload = get_power_load(load, time)
+def get_ref_price(expected_load, step, time):
+    pload = expected_load[math.floor(time//3600)]
     return pload*step/1000/3600
 
+if __name__ == "__main__":
+    run = neptune.init(project='midren/mpc-peak-shaving',
+                       api_token='eyJhcGlfYWRkcmVzcyI6Imh0dHBzOi8vYXBwLm5lcHR1bmUuYWkiLCJhcGlfdXJsIjoiaHR0cHM6Ly9hcHAubmVwdHVuZS5haSIsImFwaV9rZXkiOiIwNTZhNzExNS01MmY2LTRjZjctYjQyMS03Y2QxYTM4ZGQ5YWYifQ==',
+                       source_files=[]
+                       )
 
-# visualize_charging_discharging(week_load, 25, 75)
+    Battery_state_vars = {
+            "theveninBasedBattery.coulombSocCounter.integrator.y": "start_Q_cur",
+            "theveninBasedBattery.C_tl.v": "start_U_tl",
+            "theveninBasedBattery.C_ts.v": "start_U_ts",
+            "theveninBasedBattery.capacityFadingCalc.SoC_avg.y": "start_SoC_avg",
+            "theveninBasedBattery.capacityFadingCalc.SoC_dev.y": "start_SoC_dev",
+            "theveninBasedBattery.capacityFadingCalc.SoC_avg.t_0": "start_t_of_last_cycle",
+            "theveninBasedBattery.capacityFadingCalc.capacityFade": "start_capacity_fade",
+            "theveninBasedBattery.capacityFadingCalc.Ah_throughput.y": "start_ah_througput"
+            }
+
+    mpc_optimizer = MPCOptimizer(
+        model_info=ModelicaModelInfo(Path("/home/developer/modelica/BatteryWithFullCycle.mo"),
+                                     "BatteryMPC.BatteryWithFullCycle"),
+        # fmu_path="/home/developer/ipynotebooks/BatteryMPC.BatteryWithFullCycle.fmu",
+        initial_parameters={
+            'theveninBasedBattery.coulombSocCounter.SOC_init.k': 0.0
+        },
+        state_variables=Battery_state_vars,
+        input_vec=['I_req'],
+        output_vec=['SoC', 'SoH'],
+        points_per_sec=.1
+    )
+
+    start_time = 0
+# final_time = 60*60
+    step=360
+# final_time = (2*60+47)*60
+    final_time = 24*60*60
+    control_df = pd.DataFrame({"Time": range(start_time, final_time)})
+    control_df['I_req'] = 0
+    control_df.set_index('Time', inplace=True)
+
+    df = get_load_df()
+    load_df = get_day_load(df, datetime.date(2017, 11, 6))
+    expected_load = calculate_ref_load(load_df.values.flatten(), battery_capacity=capacity_ah)
+
+    def cost_func(step_num: int, states: pd.DataFrame, input: pd.DataFrame, output: pd.DataFrame, run: neptune.Run) -> float:
+        time = step_num*step
+        # controlled_timepoints = [time + step*i for i in range(0, step//10*3)]
+        controlled_idx = states['time'].sub(time+3*step).abs().idxmin()
+
+        controlled_timepoints = states['time'][:controlled_idx]
+        get_energy = partial(get_energy_mwh_required, load_df)
+        controlled_energy = np.array(list(map(get_energy, controlled_timepoints)))/100
+        controlled_discharged_energy = input[:controlled_idx]['I_req'].values*capacity_wh*step/3600/100
+        price = (controlled_energy - controlled_discharged_energy)
+
+        controlled_price_ref = np.array(list(map(partial(get_ref_price, expected_load, step), controlled_timepoints)))/100
+        controlled_horizon_cost = np.linalg.norm(price - controlled_price_ref)
+
+        run['cost/controlled_price'].log(np.mean(price))
+        run['cost/controlled_ref'].log(np.mean(controlled_price_ref))
+
+        predicted_timepoints = states['time'][controlled_idx:]
+        predicted_energy = np.array(list(map(get_energy, predicted_timepoints)))/100
+        predicted_battery_capacity = output[controlled_idx:]['SoC'].values*capacity_wh/100
+        predicted_discharged = predicted_battery_capacity/len(predicted_energy)/100
+        predicted_price = (predicted_energy - predicted_discharged)
+
+        predicted_ref = np.array(list(map(partial(get_ref_price, expected_load, step), predicted_timepoints)))/100
+        predicted_horizon_cost = np.linalg.norm(predicted_price - predicted_ref)
+
+        run['cost/predicted_energy'].log(np.mean(predicted_energy))
+        run['cost/predicted_discharged'].log(np.mean(predicted_discharged))
+
+        run['cost/predicted_price'].log(np.mean(predicted_price))
+        run['cost/predicted_ref'].log(np.mean(predicted_ref))
+
+        run['cost/step_num'].log(step_num)
+
+        # controlled_output = output.iloc[:controlled_idx]
+        # predicted_output = output.iloc[controlled_idx:]
+
+        # controlled_cost = np.linalg.norm(controlled_output['SoC'].values - np.ones(len(controlled_output)))
+        # predicted_cost = np.linalg.norm(predicted_output['SoC'].values - np.ones(len(predicted_output)))
+
+        alpha = 0.5
+        return controlled_horizon_cost + alpha*predicted_horizon_cost
+
+
+    def visualize_output(step_num: int, states: pd.DataFrame, run: neptune.Run):
+        timepoints = states['time']
+
+        required = np.array(list(map(lambda time: get_power_load(load_df, time)/1000, timepoints.values)))
+        discharged = np.maximum(states['I_req'].values*capacity_ah*nominal_v, 0)
+
+        for _, state in itertools.islice(states.iterrows(), len(states) - 1):
+            run['time'].log(state['time'])
+            run['state/SoC'].log(state['SoC'])
+            run['state/SoH'].log(state['SoH'])
+            run['input/I_req'].log(state['I_req'])
+
+        for from_net, from_bat in itertools.islice(zip(required-discharged, discharged), len(timepoints)-1):
+            run['output/from_network'].log(from_net)
+            run['output/from_battery'].log(from_bat)
+
+        for _, state in itertools.islice(states.iterrows(), len(states) - 1):
+            for state_var in state.keys():
+                if state_var == 'time':
+                    continue
+                run[f'state_var/{state_var}'].log(state[state_var])
+
+
+
+    new_control_df = mpc_optimizer.optimize(
+        start=start_time, end=final_time, step=step,
+        control_horizon=3,
+        simulate_horizon=9,
+        initial_guess=control_df,
+        objective_func=partial(cost_func, run=run),
+        bounds={'I_req': (-c_rate_num/3600, c_rate_num/3600)},
+        iteration_callbacks=[partial(visualize_output, run=run)],
+        constraints=[StateConstraint('SoC', 0.02, 0.98)],
+    )

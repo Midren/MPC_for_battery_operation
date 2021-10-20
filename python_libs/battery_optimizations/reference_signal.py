@@ -32,8 +32,6 @@ def charge_discharge_power(x, load):
     return power_amount(charging_load) + power_amount(discharging_load)
 
 def get_constrainsts(load, battery_capacity: float):
-    battery_capacity = 7_000
-
     total_battery_usage = NonlinearConstraint(fun=partial(
         battery_used, load=load), lb=(0, 0), ub=(battery_capacity, battery_capacity))
 

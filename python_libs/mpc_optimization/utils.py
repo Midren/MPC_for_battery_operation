@@ -3,6 +3,8 @@ import sys
 import typing as t
 from enum import Enum, unique
 
+from pyfmi import fmi
+
 import cProfile
 import pstats
 import io
@@ -37,6 +39,14 @@ class VariableType(Enum):
             return "u_"
         elif self.value == VariableType.OUTPUT.value:
             return "y_"
+
+    def fmi_constant(self):
+        if self.value == VariableType.STATE.value:
+            return fmi.FMI2_LOCAL
+        elif self.value == VariableType.INPUT.value:
+            return fmi.FMI2_INPUT
+        elif self.value == VariableType.OUTPUT.value:
+            return fmi.FMI2_OUTPUT
 
 
 class HiddenPrints:
