@@ -35,7 +35,7 @@ RUN wget \
 RUN conda update conda -y \
     && conda config --add channels conda-forge \
     && conda install pyfmi -y
-RUN conda install matplotlib>=2.0.2 numpy>=1.16.6 pandas>=0.20.3 python-dateutil>=2.6.1 scikit-learn>=0.18.2 sphinx>=1.6.3 numpydoc>=0.7.0 pyDOE>=0.3.8 netCDF4==1.4.2 cftime==1.0.4.2 siphon==0.8.0 -y
+RUN conda install matplotlib numpy pandas python-dateutil scikit-learn sphinx numpydoc -y
 RUN conda install jupyter jupyter_contrib_nbextensions jupyterthemes -y
 
 RUN mkdir -p /home/developer/.jupyter && jupyter notebook --generate-config
@@ -68,7 +68,8 @@ RUN for deb in deb deb-src; do echo "$deb http://build.openmodelica.org/apt `lsb
     sudo apt update -y && \
     sudo apt install -y openmodelica omlib-modelica-3.2.3
 
-RUN pip3 install ompython
+#RUN pip3 install ompython
+RUN python3 -m pip install -U https://github.com/OpenModelica/OMPython/archive/master.zip
 
 ENV USER developer
 ENV DISPLAY :0.0

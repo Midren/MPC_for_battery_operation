@@ -11,7 +11,8 @@
         "console": "externalTerminal",
         "debugOptions": [],
         "python": "python3",
-        "program": "${file}"
+        "program": "${file}",
+        "justMyCode": false
       },
       "breakpoints": {
         "exception": {

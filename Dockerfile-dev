@@ -5,19 +5,21 @@ USER root
 RUN apt-get update -y \
   && apt install -y ca-certificates
 
-# add newer npm
-RUN curl -sL https://deb.nodesource.com/setup_16.x -o nodesource_setup.sh \
-  && chmod +x nodesource_setup.sh \
-  && ./nodesource_setup.sh
-
 RUN apt-get update -y \
   && apt-get install -y software-properties-common \
   && add-apt-repository -y ppa:neovim-ppa/unstable \
   && apt-get update -y \
-  && apt-get install -y sudo git lua5.1 python3-dev cmake nodejs locales \
+  && apt-get install -y sudo git lua5.1 python3-dev python3-venv cmake nodejs locales curl \
   && apt-get install -y silversearcher-ag global clang-format ctags neovim zsh tmux \
   && apt upgrade -y \
   && apt-get clean
+
+# add newer npm
+RUN curl -sL https://deb.nodesource.com/setup_16.x -o nodesource_setup.sh \
+  && chmod +x nodesource_setup.sh \
+  && ./nodesource_setup.sh \
+  && apt-get install nodejs -y
+
 
 # install ripgrep
 RUN curl -LO https://github.com/BurntSushi/ripgrep/releases/download/12.1.1/ripgrep_12.1.1_amd64.deb \
@@ -48,7 +50,6 @@ RUN git clone --depth 1 https://github.com/junegunn/fzf.git ~/.fzf \
   && mkdir -p ~/.local/bin \
   && mv ~/.fzf/bin/fzf ~/.local/bin/
 
-ADD "https://www.random.org/cgi-bin/randbyte?nbytes=10&format=h" skipcache
 RUN git clone https://github.com/Midren/dotfiles ~/.dotfiles && \
         ~/.dotfiles/install-profile ubuntu-cli
 
