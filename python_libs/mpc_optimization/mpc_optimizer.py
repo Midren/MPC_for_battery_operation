@@ -102,10 +102,7 @@ class MPCOptimizer:
             def sim_function(u):
                 try:
                     state, inputs, output = simulate_to_horizon(st, tuple(u))
-                    J = objective_func(step_num, state, inputs, output)
-                    # logging.info(f'{u}, {J}')
-                    return J
-                # TODO:use specific exception for assimulo
+                    return objective_func(step_num, state, inputs, output)
                 except fmi.FMUException as e:
                     logging.warning(e)
                     logging.warning(f'Simulation failed during opmization with inputs: {u}')
@@ -135,7 +132,7 @@ class MPCOptimizer:
                              constraints=scipy_constraints,
                              options={
                                  'maxiter': 30,
-                                 'ftol': 1e-05
+                                 'ftol': 1e-08
                              })
             next_x0 = np.roll(optim.x, -1)
             next_x0[control_horizon - 1] = 0

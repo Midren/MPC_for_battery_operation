@@ -1,11 +1,13 @@
 import typing as t
 from pathlib import Path
 import itertools
+import traceback
 
 import pandas as pd
 import numpy as np
 from pyfmi import fmi, FMUModelME2, load_fmu
 from pyfmi.fmi_algorithm_drivers import FMICSAlg, FMIResult
+from assimulo.solvers.odepack import ODEPACK_Exception
 from scipy.integrate import solve_ivp
 
 from mpc_optimization.fmi_cs_alg_progressbar import FMICSAlgWithProgressBar
@@ -69,6 +71,7 @@ class FmuMeAbstract(Fmu):
                  initial_parameters: ModelVariables = dict(),
                  state_variables: ModelVariables = dict(),
                  verbose: bool = False):
+        self.fmu_source = fmu_source
         self.state_variables = state_variables
         super().__init__(fmu_source, initial_parameters, verbose)
 
@@ -83,9 +86,9 @@ class FmuMeAbstract(Fmu):
         self.model.setup_experiment(start_time=start)
         self.model.initialize()
 
-        if state is None:
-            self.set_params(self.initial_params)
-        else:
+        self.set_params(self.initial_params)
+
+        if state is not None:
             self.model.time = start
             self.model.continuous_states = state
 
@@ -183,14 +186,21 @@ class FmuMeAssimulo(FmuMeAbstract):
         points_num = options['ncp']
 
         opts = self.model.simulate_options()
+        solvers = ['CVode', 'Radau5ODE', 'RungeKutta34', 'Dopri5', 'RodasODE', 'LSODAR', 'ExplicitEuler', 'ImplicitEuler']
         opts['ncp'] = points_num
         opts['initialize'] = False
-        # opts['solver'] = 'RodasODE'
-        opts['solver'] = 'LSODAR'
-        # opts['solver'] = 'Dopri5'
+        opts['solver'] = solvers[0]
         opts[f'{opts["solver"]}_options']["verbosity"] = 50
         opts['logging'] = False
-        res = self.model.simulate(start_time=start_time, final_time=final_time, input=input, options=opts)
+        try:
+            res = self.model.simulate(start_time=start_time, final_time=final_time, input=input, options=opts)
+        except ODEPACK_Exception as e:
+            # print(self.get_state())
+            state = self.get_state()
+            self.__init__(self.fmu_source, self.initial_params, self.state_variables)
+            self.reset(start=start_time, state=state)
+            traceback.print_exception(e,tb=None, value=None)
+            raise fmi.FMUException('Simulation has failed') from e
         return self.form_res(res)
 
     def form_res(self, states: FMIResult):
