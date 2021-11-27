@@ -137,6 +137,8 @@ package BatteryMPC
         Modelica.Blocks.Math.Division division annotation(
           Placement(visible = true, transformation(origin = {14, -20}, extent = {{10, -10}, {-10, 10}}, rotation = 0)));
         Modelica.Blocks.Continuous.Integrator integrator(initType = Modelica.Blocks.Types.Init.InitialState, y_start = Q_cur);
+  Modelica.Blocks.Nonlinear.Limiter limiter(limitsAtInit = true, uMax = 1 - 1e-6, uMin = 1e-6)  annotation(
+          Placement(visible = true, transformation(origin = {-66, 0}, extent = {{10, -10}, {-10, 10}}, rotation = 0)));
       equation
         connect(SOC_init.y, Sum.u[1]) annotation(
           Line(points = {{5, 49}, {-4, 49}, {-4, 0}, {-14, 0}}, color = {0, 0, 127}));
@@ -148,10 +150,10 @@ package BatteryMPC
           Line(points = {{50, 24}, {34, 24}, {34, -14}, {26, -14}}, color = {0, 0, 127}));
         connect(integrator.u, I_bat) annotation(
           Line(points = {{72, 24}, {88, 24}, {88, 26}, {120, 26}}, color = {0, 0, 127}));
-        connect(Sum.y, SoC) annotation(
-          Line(points = {{-36, 0}, {-110, 0}}, color = {0, 0, 127}));
-        annotation(
-          Placement(visible = true, transformation(origin = {60, 24}, extent = {{10, -10}, {-10, 10}}, rotation = 0)));
+  connect(Sum.y, limiter.u) annotation(
+          Line(points = {{-36, 0}, {-54, 0}}, color = {0, 0, 127}));
+  connect(limiter.y, SoC) annotation(
+          Line(points = {{-76, 0}, {-110, 0}}, color = {0, 0, 127}));
         annotation(
           uses(Modelica(version = "3.2.3")),
           Icon(coordinateSystem(preserveAspectRatio = true, extent = {{-100, -100}, {100, 100}}), graphics = {Rectangle(lineColor = {0, 0, 127}, fillColor = {255, 255, 255}, fillPattern = FillPattern.Solid, extent = {{-100, -100}, {100, 100}}), Text(lineColor = {0, 0, 255}, extent = {{-150, 150}, {150, 110}}, textString = "")}),
@@ -162,7 +164,8 @@ package BatteryMPC
       of package Modelica.Blocks inherit directly or indirectly
       from this block.
       </p>
-      </html>"));
+      </html>"),
+          Placement(visible = true, transformation(origin = {60, 24}, extent = {{10, -10}, {-10, 10}}, rotation = 0)));
       end CoulombSocCounter;
     
       block CapacityFadingCalculator
