@@ -17,7 +17,8 @@ from mpc_optimization.fmu_source import FmuSource, ModelicaModelInfo, FmuType
 from mpc_optimization.utils import ModelVariables, VariableType
 from mpc_optimization.fmu_model import FmuMeAssimulo
 
-StateConstraint = namedtuple('StateConstraint', ['var', 'lb', 'ub'])
+VariableConstraint = namedtuple('VariableConstraint', ['var', 'lb', 'ub'])
+DerVariableConstraint = namedtuple('DerVariableConstraint', ['var', 'lb', 'ub'])
 
 
 class MPCOptimizer:
@@ -73,11 +74,11 @@ class MPCOptimizer:
         objective_func: t.Callable[[int, pd.DataFrame, pd.DataFrame, pd.DataFrame], float],
         initial_guess: pd.DataFrame,
         bounds: t.Dict[str, t.Tuple[float, float]] = dict(),
-        constraints: t.List[StateConstraint] = [],
+        constraints: t.List[VariableConstraint] = [],
         simulate_horizon: int = 0,
         step: float = 1,
         iteration_callbacks: t.List[t.Callable[[int, pd.DataFrame], None]] = [],
-        early_stopping_funcs: t.List[t.Callable[[int, ModelVariables], bool]] = []
+        early_stopping_funcs: t.List[t.Callable[[int, ModelVariables], bool]] = [],
     ) -> pd.DataFrame:
         step_state: t.Optional[np.ndarray] = None
         next_x0: t.Optional[np.ndarray] = None
@@ -87,7 +88,6 @@ class MPCOptimizer:
             simulate_horizon = control_horizon
 
         for step_num, st in enumerate(tqdm(np.arange(start, end, step))):
-
             @functools.lru_cache
             def simulate_to_horizon(st, u) -> t.Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
                 # input_df.iloc[input_df.index >= st] = u  # * C_rate_per_second
@@ -117,9 +117,21 @@ class MPCOptimizer:
                     return np.nan
                 return val
 
-            scipy_constraints = [
-                NonlinearConstraint(partial(get_last_value, var=cons.var), cons.lb, cons.ub) for cons in constraints
-            ]
+            def get_max_der_value(u, var: str):
+                try:
+                    states, _, _ = simulate_to_horizon(st, tuple(u))
+                    val = states[var].diff(1).max()
+                except fmi.FMUException:
+                    logging.warning(f'Simulation failed during opmization with inputs: {u}')
+                    return np.nan
+                return val
+
+            scipy_constraints = []
+            for cons in constraints:
+                if isinstance(cons, VariableConstraint):
+                    scipy_constraints.append(NonlinearConstraint(partial(get_last_value, var=cons.var), cons.lb, cons.ub))
+                elif isinstance(cons, DerVariableConstraint):
+                    scipy_constraints.append(NonlinearConstraint(partial(get_max_der_value, var=cons.var), cons.lb, cons.ub))
 
             def get_random_input(control_horizon: int):
                 return np.random.uniform(low=bounds['I_req'][0], high=bounds['I_req'][1], size=(control_horizon))
