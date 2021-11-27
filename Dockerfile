@@ -17,8 +17,7 @@ ENV PATH="/home/developer/miniconda3/bin:${PATH}"
 EXPOSE 8888
 EXPOSE 22
 
-RUN apt-get -y update && apt-get install -y ipython vim libgeos-dev git openssh-server sudo iproute2 python3-pip python3
-RUN apt-get install -y wget && rm -rf /var/lib/apt/lists/*
+RUN apt-get -y update && apt-get install -y ipython vim libgeos-dev git openssh-server sudo iproute2 python3-pip python3 wget
 
 RUN usermod -aG sudo developer
 RUN echo "developer ALL=(ALL) NOPASSWD:ALL" | sudo tee /etc/sudoers.d/username
@@ -52,6 +51,7 @@ RUN jupyter nbextension enable collapsible_headings/main
 RUN jt -tf source -nf ptsans -nfs 10 -ofs 10 -fs 10 -tfs 10 #-t gruvboxd --vim
 
 RUN conda install altair vega autopep8 seaborn pytorch pytorch-lightning statsmodels keras neptune-client
+RUN conda install pip
 RUN conda init bash 
 
 RUN mkdir /home/developer/ipynotebooks && \
@@ -66,7 +66,8 @@ RUN for deb in deb deb-src; do echo "$deb http://build.openmodelica.org/apt `lsb
     wget -q http://build.openmodelica.org/apt/openmodelica.asc -O- | sudo apt-key add - && \
     apt-key fingerprint && \
     sudo apt update -y && \
-    sudo apt install -y openmodelica omlib-modelica-3.2.3
+    sudo apt install -y openmodelica omlib-modelica-3.2.3 && \
+    sudo apt clean -y && sudo rm -rf /var/lib/apt/lists/*
 
 #RUN pip3 install ompython
 RUN python3 -m pip install -U https://github.com/OpenModelica/OMPython/archive/master.zip
