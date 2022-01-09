@@ -9,7 +9,8 @@ import datetime
 import matplotlib.pyplot as plt
 import neptune.new as neptune
 
-from battery_optimizations.date_splitting import get_day_load, get_interval_load
+from battery_optimizations.load_forecasting import predict_day_load
+from battery_optimizations.date_splitting import get_days_load, get_interval_load, get_day_idx
 from battery_optimizations.reference_signal import calculate_ref_load
 
 from mpc_optimization.battery_model_constants import Battery_state_vars, State_vars_aliases_dict, C_rate_per_second
@@ -21,7 +22,8 @@ def get_load_df() -> pd.DataFrame:
     df['cet_cest_timestamp'] = df['cet_cest_timestamp'].apply(lambda x: x.replace(tzinfo=None))
     df = df.rename({'cet_cest_timestamp': 'time', 'SE_load_actual_tso': 'load'}, axis=1)
     df = df.set_index('time')
-    df = df.loc[~df.index.duplicated(keep='first')]
+    # TODO: removal of duplicated indeces breaks prediction
+    # df = df.loc[~df.index.duplicated(keep='first')]
     return df
 
 def show_week_interval(df):
@@ -68,7 +70,7 @@ if __name__ == "__main__":
     run = neptune.init(project='midren/mpc-peak-shaving',
                        api_token='eyJhcGlfYWRkcmVzcyI6Imh0dHBzOi8vYXBwLm5lcHR1bmUuYWkiLCJhcGlfdXJsIjoiaHR0cHM6Ly9hcHAubmVwdHVuZS5haSIsImFwaV9rZXkiOiIwNTZhNzExNS01MmY2LTRjZjctYjQyMS03Y2QxYTM4ZGQ5YWYifQ==',
                        source_files=[],
-                       description='Change load interpolation to 10 sec'
+                       description='Prediction integration'
                        # mode='debug'
                        )
 
@@ -107,16 +109,28 @@ if __name__ == "__main__":
     control_df.set_index('Time', inplace=True)
 
     df = get_load_df()
-    load_df = get_day_load(df, datetime.date(2017, 11, 6))
+    day = datetime.date(2016, 11, 6)
+
+    st_idx = get_day_idx(df, day)
+    st_idx -= 2*24*7
+    load_df = predict_day_load(df, st_idx)
+    true_load_df = get_days_load(df, day, n_days=1)
+
+    # load_df = get_days_load(df, datetime.date(2017, 11, 6), n_days=2*7*24+24)
     expected_load = calculate_ref_load(load_df.values.flatten(), battery_capacity=capacity_ah)
     for i in load_df.values:
+        run['initial/predicted_load'].log(i)
+    for i in true_load_df.values:
         run['initial/load'].log(i[0])
     for i in expected_load:
         run['initial/optimal_load'].log(i)
 
     expected_load = pd.DataFrame({'Time': load_df.index, 'load': expected_load}).set_index('Time').asfreq(freq='10S').interpolate('linear')
     load_df = load_df.asfreq(freq='10S').interpolate('linear')
+    true_load_df = true_load_df.asfreq(freq='10S').interpolate('linear')
     for i in load_df.values:
+        run['initial/interpolated_predicted_load'].log(i)
+    for i in true_load_df.values:
         run['initial/interpolated_load'].log(i[0])
     for i in expected_load.values:
         run['initial/interpolated_optimal_load'].log(i[0])
@@ -127,7 +141,7 @@ if __name__ == "__main__":
         controlled_idx = states['time'].sub(min(time+3*step, final_time-10)).abs().idxmin() + 1
 
         controlled_timepoints = states['time'][:controlled_idx]
-        get_energy = partial(get_energy_mwh_required, load_df)
+        get_energy = partial(get_energy_mwh_required, true_load_df)
         controlled_energy = np.array(list(map(get_energy, controlled_timepoints)))
         controlled_discharged_energy = input[:controlled_idx]['I_req'].values*capacity_wh/3600
         # controlled_discharged_energy = input[:controlled_idx]['I_req'].values*capacity_wh*step/3600
@@ -153,7 +167,7 @@ if __name__ == "__main__":
     def visualize_output(step_num: int, states: pd.DataFrame, run: neptune.Run):
         timepoints = states['time']
 
-        required = np.array(list(map(lambda time: get_power_load(load_df, time)/1000, timepoints.values)))
+        required = np.array(list(map(lambda time: get_power_load(true_load_df, time)/1000, timepoints.values)))
         discharged = states['I_req'].values*capacity_ah*nominal_v
 
         for _, state in itertools.islice(states.iterrows(), len(states) - 1):

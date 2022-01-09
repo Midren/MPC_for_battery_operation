@@ -97,10 +97,31 @@ def _get_day_diff(df: pd.DataFrame, day: datetime.date):
     return (datetime.datetime(day.year, day.month, day.day, first_day.hour) - first_day).days
 
 
-def get_day_load(df: pd.DataFrame, day: datetime.date):
+def get_days_load(df: pd.DataFrame, day: datetime.date, n_days=1):
     start_of_day = _get_start_of_days(df)
-    st = start_of_day[_get_day_diff(df, day)]
-    return df.iloc[st:st + 24]
+    day = datetime.datetime.combine(day, datetime.datetime.min.time())
+
+    st_idx = _get_day_diff(df, day)
+    while (df.iloc[start_of_day[st_idx-1]].name.to_pydatetime() - day).days > 0:
+        st_idx -= 1
+    while (day - df.iloc[start_of_day[st_idx+1]].name.to_pydatetime()).days > 0:
+        st_idx += 1
+    st = start_of_day[st_idx]
+
+    return df.iloc[st:st + 24*n_days]
+
+def get_day_idx(df: pd.DataFrame, day: datetime.date):
+    start_of_day = _get_start_of_days(df)
+    day = datetime.datetime.combine(day, datetime.datetime.min.time())
+
+    st_idx = _get_day_diff(df, day)
+    while (df.iloc[start_of_day[st_idx-1]].name.to_pydatetime() - day).days > 0:
+        st_idx -= 1
+    while (day - df.iloc[start_of_day[st_idx+1]].name.to_pydatetime()).days > 0:
+        st_idx += 1
+    st = start_of_day[st_idx]
+
+    return st
 
 
 def get_interval_load(df: pd.DataFrame, st_day: datetime.date, en_day: datetime.date):
