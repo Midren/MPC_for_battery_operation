@@ -119,7 +119,7 @@ package BatteryMPC
         Modelica.Blocks.Interfaces.RealInput SoC;
         input Parameters params;
       equation
-        C = max(params.C_0 + params.k1 * SoC + params.k2 * SoC ^ 2 + params.k3 * SoC ^ 3 + params.k4 * SoC ^ 4 + params.k5 * SoC ^ 5 + params.k6 * SoC ^ 6, 0) / 3600;
+        C = max(params.C_0 + params.k1 * SoC + params.k2 * SoC ^ 2 + params.k3 * SoC ^ 3 + params.k4 * SoC ^ 4 + params.k5 * SoC ^ 5 + params.k6 * SoC ^ 6, 1e-6) / 3600;
       end ChargeDependentCapacitor;
     
       block CoulombSocCounter
@@ -256,7 +256,7 @@ package BatteryMPC
           end when;
     //t_0 = t_0 + 0;
           der(mu) = noEvent(if time >= t_0 + t_eps then (u - mu) / (time - t_0) else 0);
-          y = noEvent(if time >= t_0 + t_eps then mu else u);
+          y = noEvent(if time >= t_0 + t_eps then mu else u) + 1e-4;
         end MeanWithReset;
     
         block StandardDeviationWithReset "Calculates the empirical standard deviation of its input signal"
